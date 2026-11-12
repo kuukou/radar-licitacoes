@@ -22,6 +22,7 @@
 - [Extensão para Chrome (opcional)](#extensão-para-chrome-opcional)
 - [Solução de problemas](#solução-de-problemas)
 - [Limitações conhecidas](#limitações-conhecidas)
+- [Segurança e privacidade](#segurança-e-privacidade)
 - [Fonte dos dados e créditos](#fonte-dos-dados-e-créditos)
 
 ---
@@ -104,6 +105,7 @@ radar-licitacoes/
 ├── assets/
 │   ├── css/app.css               # Estilos (tema claro e escuro)
 │   ├── js/app.js                 # Lógica: carga dos dados, filtros, lista, radar, agenda, CSV
+│   ├── js/tema.js                # Aplica o tema salvo antes de a página aparecer
 │   └── img/og.png                # Imagem de prévia ao compartilhar o link
 ├── data/                         # Gerado automaticamente — não editar
 │   ├── indice.json               # Totais por estado, pontos do radar, diagnóstico da coleta
@@ -114,6 +116,7 @@ radar-licitacoes/
 ├── .github/workflows/
 │   └── atualizar.yml             # Agendamento da coleta
 ├── .nojekyll                     # Faz o GitHub Pages servir os arquivos como estão
+├── SECURITY.md                   # Política de segurança
 └── README.md
 ```
 
@@ -178,6 +181,15 @@ A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que 
 - **Sem contas.** Favoritas e buscas salvas não sincronizam entre aparelhos, porque o site não tem servidor nem login.
 - **Qualidade da fonte.** Descrições, valores e municípios vêm como o órgão cadastrou e podem ter erros ou campos vazios.
 - **Busca textual.** A busca é feita localmente sobre os campos coletados. O conteúdo dos PDFs dos editais não é pesquisado.
+
+## Segurança e privacidade
+
+- **Sem contas e sem rastreamento.** O site não tem login, cookies nem ferramentas de análise. Favoritas, buscas salvas e tema ficam no navegador de cada visitante.
+- **Dados externos tratados como não confiáveis.** Textos do PNCP são escapados, links só são aceitos em `http`/`https` e a planilha exportada é protegida contra fórmulas maliciosas.
+- **Política de conteúdo (CSP).** A página só executa scripts do próprio site e só se conecta ao `pncp.gov.br`.
+- **Coleta com privilégio mínimo.** A Action tem apenas permissão de escrita no conteúdo do repositório, usa *actions* fixadas por *hash* e nenhum pacote de terceiros.
+
+Detalhes e como relatar um problema: [`SECURITY.md`](SECURITY.md).
 
 ## Fonte dos dados e créditos
 

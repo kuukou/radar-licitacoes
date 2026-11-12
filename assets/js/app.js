@@ -44,14 +44,27 @@ const norm = (s) => (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, ""
 const esc = (s) => (s ?? "").toString().replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const termos = (str) => (str || "").split(",").map((t) => norm(t.trim())).filter(Boolean);
 
+// Links vêm de cadastros de terceiros: só aceita http/https (bloqueia "javascript:" e afins)
+// e completa endereços digitados sem o "https://".
+function urlSegura(u) {
+  u = (u || "").toString().trim();
+  if (!u) return "";
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u) && /^[a-z0-9-]+(\.[a-z0-9-]+)+([/:?#]|$)/i.test(u)) u = "https://" + u;
+  try {
+    const x = new URL(u);
+    return x.protocol === "https:" || x.protocol === "http:" ? x.href : "";
+  } catch { return ""; }
+}
+
 function partesId(id) {
   const m = /^(\d{14})-\d+-0*(\d+)\/(\d{4})$/.exec(id || "");
   return m ? { cnpj: m[1], seq: m[2], ano: m[3] } : null;
 }
 function linkDe(r) {
-  if (r.link || r.l) return r.link || r.l;
+  const proprio = urlSegura(r.link || r.l);
+  if (proprio) return proprio;
   const p = partesId(r.id);
-  return p ? `https://pncp.gov.br/app/editais/${p.cnpj}/${p.ano}/${p.seq}` : (r.origem || "https://pncp.gov.br/app/editais");
+  return p ? `https://pncp.gov.br/app/editais/${p.cnpj}/${p.ano}/${p.seq}` : (urlSegura(r.origem) || "https://pncp.gov.br/app/editais");
 }
 
 // Nomes de órgãos vêm em MAIÚSCULAS; deixa em caixa normal preservando siglas.
@@ -83,7 +96,8 @@ function nomeProprio(s) {
 
 function preparar(x) {
   for (const k of ["objeto", "info", "orgao", "unidade", "municipio", "modalidade", "disputa", "origem", "numero"]) x[k] = x[k] || "";
-  x.valor = x.valor || 0;
+  x.valor = Number(x.valor) || 0;
+  x.origem = urlSegura(x.origem);
   x._busca = norm([x.objeto, x.info, x.orgao, x.unidade, x.municipio].join(" "));
   x._enc = x.encerra ? Date.parse(x.encerra) : Infinity;
   x._pub = x.publicada ? Date.parse(x.publicada) : 0;
@@ -171,7 +185,8 @@ function desenharRadar() {
     p.urg = p._e - agora < 2 * DIA;
   });
   $("blips").innerHTML = radarPts.map((p) =>
-    `<circle class="blip${p.urg ? " urg" : ""}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.urg ? 2.6 : 2}" style="animation-delay:${p.atraso.toFixed(2)}s"/>`).join("");
+    `<circle class="blip${p.urg ? " urg" : ""}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p.urg ? 2.6 : 2}"/>`).join("");
+  [...$("blips").children].forEach((c, i) => (c.style.animationDelay = radarPts[i].atraso.toFixed(2) + "s"));
   $("alvos").innerHTML = radarPts.map((p, i) =>
     `<circle class="alvo" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7"/>`).join("");
 }
@@ -661,7 +676,11 @@ function baixarPlanilha() {
   const cols = [["Objeto", (r) => r.objeto], ["Órgão", (r) => r.orgao], ["Unidade", (r) => r.unidade], ["Município", (r) => r.municipio], ["UF", (r) => r.uf],
     ["Modalidade", (r) => r.modalidade], ["Valor estimado", null], ["Abertura das propostas", (r) => r.abertura],
     ["Encerramento das propostas", (r) => r.encerra], ["Número", (r) => r.numero], ["Edital no PNCP", linkDe], ["Onde enviar proposta", (r) => r.origem]];
-  const q = (v) => `"${(v ?? "").toString().replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+  const q = (v) => {
+    let t = (v ?? "").toString().replace(/\r?\n/g, " ");
+    if (/^[=+\-@\t]/.test(t)) t = "'" + t;      // texto que começa com = + - @ viraria fórmula no Excel
+    return `"${t.replace(/"/g, '""')}"`;
+  };
   const linhas = [cols.map((c) => q(c[0])).join(";")]
     .concat(filtrados.map((r) => cols.map(([, fn]) => (fn ? q(fn(r)) : String(r.valor).replace(".", ","))).join(";")));
   baixarArquivo(`licitacoes_${new Date().toISOString().slice(0, 10)}.csv`, "﻿" + linhas.join("\r\n"), "text/csv;charset=utf-8");

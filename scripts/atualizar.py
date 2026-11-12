@@ -79,22 +79,32 @@ def get(uf, pagina, data_final, tentativas=4):
         time.sleep(espera)
 
 
+def url_segura(u):
+    """Só aceita http/https; completa endereços cadastrados sem o esquema ("www.portal.com.br")."""
+    u = (u or "").strip()
+    if not u or any(ch.isspace() or ord(ch) < 32 for ch in u):
+        return ""
+    if not re.match(r"^[a-z][a-z0-9+.-]*:", u, re.I) and re.match(r"^[a-z0-9-]+(\.[a-z0-9-]+)+([/:?#]|$)", u, re.I):
+        u = "https://" + u
+    return u[:500] if re.match(r"^https?://[^/\s]+", u, re.I) else ""
+
+
 def norm(c):
     """Reduz um registro do PNCP aos campos usados pelo site (campos vazios são omitidos)."""
     org, un = c.get("orgaoEntidade") or {}, c.get("unidadeOrgao") or {}
     cnpj, ano, seq = org.get("cnpj", ""), c.get("anoCompra"), c.get("sequencialCompra")
     id_ = c.get("numeroControlePNCP") or f"{cnpj}-{ano}-{seq}"
-    orgao, unidade = (org.get("razaoSocial") or "").strip(), (un.get("nomeUnidade") or "").strip()
+    orgao, unidade = (org.get("razaoSocial") or "").strip()[:200], (un.get("nomeUnidade") or "").strip()[:200]
     disputa = c.get("modoDisputaNome") or ""
     situacao = c.get("situacaoCompraNome") or ""
     r = {
         "id": id_,
-        "objeto": (c.get("objetoCompra") or "").strip(),
+        "objeto": (c.get("objetoCompra") or "").strip()[:3000],
         "info": (c.get("informacaoComplementar") or "").strip()[:200],
         "orgao": orgao,
         "unidade": "" if unidade.lower() == orgao.lower() else unidade,
         "uf": un.get("ufSigla") or "",
-        "municipio": un.get("municipioNome") or "",
+        "municipio": (un.get("municipioNome") or "")[:100],
         "modalidade": c.get("modalidadeNome") or "",
         "disputa": "" if disputa.lower().startswith("não se aplica") else disputa,
         "srp": bool(c.get("srp")),
@@ -103,7 +113,7 @@ def norm(c):
         "encerra": c.get("dataEncerramentoProposta"),
         "publicada": c.get("dataPublicacaoPncp"),
         "numero": "/".join(str(x) for x in [c.get("numeroCompra"), ano] if x),
-        "origem": c.get("linkSistemaOrigem") or "",
+        "origem": url_segura(c.get("linkSistemaOrigem")),
         "sit": "" if situacao == "Divulgada no PNCP" else situacao,
     }
     if not ID_PADRAO.match(id_):            # o site monta o link a partir do id; só guarda se não der

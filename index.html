@@ -2,7 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<script>try{var d=document.documentElement,t=localStorage.getItem("radar_tema");d.dataset.tema=t?JSON.parse(t):(matchMedia("(prefers-color-scheme: dark)").matches?"escuro":"claro");if(localStorage.getItem("radar_visita"))d.classList.add("compacto")}catch(e){}</script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://pncp.gov.br; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<script src="assets/js/tema.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Radar de Licitações — licitações abertas no Brasil</title>
 <meta name="description" content="Consulte e filtre licitações com propostas abertas em todo o Brasil, com dados do PNCP atualizados automaticamente.">

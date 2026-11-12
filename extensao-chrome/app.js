@@ -38,13 +38,21 @@ function termos(str) {
   return str.split(",").map((t) => norm(t.trim())).filter(Boolean);
 }
 
+// Só aceita links http/https vindos do PNCP; completa os cadastrados sem "https://".
+function urlSegura(u) {
+  u = (u || "").toString().trim();
+  if (!u) return "";
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u) && /^[a-z0-9-]+(\.[a-z0-9-]+)+([/:?#]|$)/i.test(u)) u = "https://" + u;
+  try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:" ? x.href : ""; } catch { return ""; }
+}
+
 function normalizar(c) {
   const org = c.orgaoEntidade || {};
   const un = c.unidadeOrgao || {};
   const cnpj = org.cnpj || "";
   const link = cnpj && c.anoCompra && c.sequencialCompra
     ? `https://pncp.gov.br/app/editais/${cnpj}/${c.anoCompra}/${c.sequencialCompra}`
-    : (c.linkSistemaOrigem || "https://pncp.gov.br/app/editais");
+    : (urlSegura(c.linkSistemaOrigem) || "https://pncp.gov.br/app/editais");
   const r = {
     id: c.numeroControlePNCP || `${cnpj}-${c.anoCompra}-${c.sequencialCompra}`,
     objeto: (c.objetoCompra || "").trim(),
@@ -63,7 +71,7 @@ function normalizar(c) {
     publicada: c.dataPublicacaoPncp || null,
     numero: [c.numeroCompra, c.anoCompra].filter(Boolean).join("/"),
     link,
-    origem: c.linkSistemaOrigem || "",
+    origem: urlSegura(c.linkSistemaOrigem),
   };
   r._busca = norm([r.objeto, r.info, r.orgao, r.unidade, r.municipio].join(" "));
   r._enc = r.encerra ? Date.parse(r.encerra) : Infinity;
@@ -290,7 +298,11 @@ function exportarCSV() {
     ["Modalidade","modalidade"],["Valor estimado","valor"],["Abertura propostas","abertura"],
     ["Encerramento propostas","encerra"],["Número","numero"],["Link PNCP","link"],["Sistema de origem","origem"]
   ];
-  const q = (v) => `"${(v ?? "").toString().replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+  const q = (v) => {
+    let t = (v ?? "").toString().replace(/\r?\n/g, " ");
+    if (/^[=+\-@\t]/.test(t)) t = "'" + t;      // evita que o Excel trate o texto como fórmula
+    return `"${t.replace(/"/g, '""')}"`;
+  };
   const linhas = [cols.map((c) => q(c[0])).join(";")]
     .concat(filtrados.map((r) => cols.map(([, k]) => k === "valor" ? String(r.valor).replace(".", ",") : q(r[k])).join(";")));
   const blob = new Blob(["﻿" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
