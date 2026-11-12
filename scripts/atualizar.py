@@ -1,8 +1,16 @@
-"""Baixa do PNCP todas as licitações com propostas abertas e grava data/licitacoes.json."""
-import json, time, datetime as dt, urllib.request, urllib.parse, concurrent.futures as cf
+"""Coletor do Radar de Licitações.
+
+Baixa do PNCP (API de consulta pública) todas as contratações com recebimento
+de propostas em aberto, UF por UF, normaliza os campos usados pelo site e grava
+`data/licitacoes.json`.
+
+Uso local:  python scripts/atualizar.py   (Python 3.9+, sem dependências externas)
+"""
+import json, time, pathlib, datetime as dt, urllib.request, urllib.parse, concurrent.futures as cf
 
 API = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta"
 UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split()
+SAIDA = pathlib.Path(__file__).resolve().parent.parent / "data" / "licitacoes.json"
 DATA_FINAL = (dt.date.today() + dt.timedelta(days=365)).strftime("%Y%m%d")
 
 def get(params, pagina, tentativas=5):
@@ -71,7 +79,8 @@ def main():
     agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3)))
     lista = [r for r in todos.values() if not r["encerra"] or r["encerra"] >= agora.strftime("%Y-%m-%dT%H:%M:%S")]
     out = {"atualizado": agora.strftime("%d/%m/%Y %H:%M"), "falhas": falhas, "itens": lista}
-    with open("data/licitacoes.json", "w", encoding="utf-8") as f:
+    SAIDA.parent.mkdir(parents=True, exist_ok=True)
+    with open(SAIDA, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
     print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam")
 
