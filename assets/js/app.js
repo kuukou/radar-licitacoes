@@ -127,7 +127,7 @@ function montarOpcoes() {
   $("estados").innerHTML = UFS.map((u) => {
     const n = porUf[u] || 0;
     return `<button class="uf" data-uf="${u}" aria-pressed="${ufsSel.has(u)}" ${n ? "" : "disabled"} title="${n} licitações">
-      <b>${u}</b><small>${nfmt(n)}</small></button>`;
+${u}<small>${nfmt(n)}</small></button>`;
   }).join("");
   const mods = [...new Set(dados.map((r) => r.modalidade).filter(Boolean))].sort();
   $("f-mod").innerHTML = `<option value="">Todas</option>` + mods.map((m) => `<option>${esc(m)}</option>`).join("");
@@ -144,7 +144,7 @@ function atualizarMunicipios() {
 function sincronizarEstados() {
   document.querySelectorAll(".uf").forEach((b) => b.setAttribute("aria-pressed", ufsSel.has(b.dataset.uf)));
   $("btn-ufs-limpar").hidden = !ufsSel.size;
-  $("estados-legenda").textContent = ufsSel.size ? `Estados selecionados: ${ufsSel.size}` : "Estados (toque para escolher um ou mais)";
+  $("estados-legenda").textContent = ufsSel.size ? `Estados selecionados: ${ufsSel.size}` : "Estados (escolha um ou mais)";
 }
 
 // ---------- atalhos ----------
