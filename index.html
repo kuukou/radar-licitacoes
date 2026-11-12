@@ -5,80 +5,123 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Radar de Licitações — PNCP</title>
 <meta name="description" content="Consulte e filtre licitações com propostas abertas em todo o Brasil, com dados do PNCP atualizados automaticamente.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%93%A1%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2314213D'/%3E%3Cpath d='M16 16 L16 3 A13 13 0 0 1 28 12 Z' fill='%232B4EFF'/%3E%3Ccircle cx='21' cy='10' r='2' fill='%23FFD84D'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
-<header>
-  <h1>Radar de Licitações <span>PNCP · propostas abertas</span></h1>
-  <div id="status" class="status">Carregando licitações…</div>
+
+<header class="hero">
+  <div class="hero-text">
+    <p class="brand"><span class="brand-dot" aria-hidden="true"></span>Radar de Licitações</p>
+    <h1>Toda licitação aberta no Brasil, num lugar só.</h1>
+    <p class="hero-count"><strong id="contador">0</strong> <span>licitações recebendo propostas agora</span></p>
+    <p class="hero-meta" id="status">Carregando dados do PNCP…</p>
+  </div>
+  <div class="radar" aria-hidden="true">
+    <svg viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2B4EFF" stop-opacity="0"/>
+          <stop offset="1" stop-color="#2B4EFF" stop-opacity=".55"/>
+        </linearGradient>
+      </defs>
+      <circle cx="100" cy="100" r="96" class="ring"/>
+      <circle cx="100" cy="100" r="68" class="ring"/>
+      <circle cx="100" cy="100" r="40" class="ring"/>
+      <line x1="4" y1="100" x2="196" y2="100" class="ring"/>
+      <line x1="100" y1="4" x2="100" y2="196" class="ring"/>
+      <g class="sweep"><path d="M100 100 L100 4 A96 96 0 0 1 183 52 Z" fill="url(#sweep)"/></g>
+      <g id="blips"></g>
+    </svg>
+    <p class="radar-legenda">Cada ponto é uma licitação que encerra nos próximos 7 dias. Quanto mais perto do centro, mais perto do prazo.</p>
+  </div>
 </header>
 
-<section class="card">
-  <h2>Filtrar</h2>
-  <div class="row">
-    <label class="grow">Palavras (objeto, órgão, cidade) — use vírgula para "qualquer uma"
-      <input type="search" id="f-txt" placeholder="ex.: cadeira, mobiliário, armário">
-    </label>
-    <label>Excluir palavras
-      <input type="search" id="f-not" placeholder="ex.: locação">
-    </label>
-  </div>
-  <div class="row">
-    <label>UF
-      <select id="f-uf"><option value="">Todas</option></select>
-    </label>
-    <label>Município
-      <input type="search" id="f-mun" list="dl-mun" placeholder="qualquer">
-      <datalist id="dl-mun"></datalist>
-    </label>
-    <label>Modalidade
-      <select id="f-mod"><option value="">Todas</option></select>
-    </label>
-    <label>Valor mín. (R$)
-      <input type="number" id="f-vmin" min="0" step="1000">
-    </label>
-    <label>Valor máx. (R$)
-      <input type="number" id="f-vmax" min="0" step="1000">
-    </label>
-    <label>Encerra em até (dias)
-      <input type="number" id="f-dias" min="0" placeholder="qualquer">
-    </label>
-    <label class="chk"><input type="checkbox" id="f-fav"> Só favoritas</label>
-    <button id="btn-limpar" class="ghost">Limpar filtros</button>
-  </div>
-</section>
-
-<section class="card">
-  <div class="tbar">
-    <div id="resumo"></div>
-    <div class="row tight">
-      <label>Ordenar
-        <select id="ord">
-          <option value="enc-asc">Encerra antes</option>
-          <option value="enc-desc">Encerra depois</option>
-          <option value="val-desc">Maior valor</option>
-          <option value="val-asc">Menor valor</option>
-          <option value="pub-desc">Publicada recentemente</option>
-        </select>
+<main>
+  <section class="busca" aria-label="Buscar licitações">
+    <div class="busca-linha">
+      <label class="campo-principal">
+        <span class="sr">Buscar por palavras</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input type="search" id="f-txt" placeholder="O que você vende? Ex.: cadeira, mesa, armário" autocomplete="off">
       </label>
-      <button id="btn-csv" class="ghost">Exportar CSV</button>
+      <button id="btn-filtros" class="btn-filtros" aria-expanded="false" aria-controls="painel">
+        Filtros <span id="n-filtros" class="badge" hidden>0</span>
+      </button>
     </div>
-  </div>
-  <table>
-    <thead><tr>
-      <th></th><th>Objeto</th><th>Órgão / Local</th><th>Modalidade</th><th class="num">Valor estimado</th><th>Encerra</th><th></th>
-    </tr></thead>
-    <tbody id="tb"></tbody>
-  </table>
-  <div class="pager">
-    <button id="pg-prev" class="ghost">‹ Anterior</button>
-    <span id="pg-info"></span>
-    <button id="pg-next" class="ghost">Próxima ›</button>
-  </div>
-</section>
+    <p class="dica">Separe por vírgula para encontrar qualquer uma das palavras.</p>
 
-<footer>Dados: Portal Nacional de Contratações Públicas (pncp.gov.br) — CC BY 4.0. Sempre confira o edital e a plataforma de disputa antes de enviar proposta. · <a href="https://github.com/kuukou/radar-licitacoes" target="_blank" rel="noopener">Código no GitHub</a></footer>
+    <div class="atalhos" role="group" aria-label="Atalhos">
+      <button class="chip" data-atalho="semana">Encerra em 7 dias</button>
+      <button class="chip" data-atalho="pregao">Pregão eletrônico</button>
+      <button class="chip" data-atalho="dispensa">Dispensa</button>
+      <button class="chip" data-atalho="fav">★ Favoritas</button>
+    </div>
+
+    <div id="painel" class="painel" hidden>
+      <div class="painel-grade">
+        <label>Estado
+          <select id="f-uf"><option value="">Todos</option></select>
+        </label>
+        <label>Município
+          <input type="search" id="f-mun" list="dl-mun" placeholder="Qualquer">
+          <datalist id="dl-mun"></datalist>
+        </label>
+        <label>Modalidade
+          <select id="f-mod"><option value="">Todas</option></select>
+        </label>
+        <label>Excluir palavras
+          <input type="search" id="f-not" placeholder="Ex.: locação, serviço">
+        </label>
+        <label>Valor a partir de
+          <input type="number" id="f-vmin" min="0" step="1000" placeholder="R$ 0">
+        </label>
+        <label>Valor até
+          <input type="number" id="f-vmax" min="0" step="1000" placeholder="Sem limite">
+        </label>
+        <label>Encerra em até
+          <select id="f-dias">
+            <option value="">Qualquer prazo</option>
+            <option value="2">2 dias</option>
+            <option value="7">7 dias</option>
+            <option value="15">15 dias</option>
+            <option value="30">30 dias</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="f-fav"> Só favoritas</label>
+      </div>
+      <button id="btn-limpar" class="link">Limpar filtros</button>
+    </div>
+  </section>
+
+  <section class="resultados" aria-label="Resultados">
+    <div class="res-topo">
+      <p id="resumo" aria-live="polite"></p>
+      <div class="res-acoes">
+        <label class="ordem">Ordenar por
+          <select id="ord">
+            <option value="enc-asc">Prazo mais próximo</option>
+            <option value="val-desc">Maior valor</option>
+            <option value="val-asc">Menor valor</option>
+            <option value="pub-desc">Mais recentes</option>
+          </select>
+        </label>
+        <button id="btn-csv" class="btn-sec">Baixar planilha</button>
+      </div>
+    </div>
+    <ol id="lista" class="lista"></ol>
+    <button id="btn-mais" class="btn-mais" hidden>Mostrar mais</button>
+  </section>
+</main>
+
+<footer>
+  <p>Dados do <a href="https://pncp.gov.br" target="_blank" rel="noopener">Portal Nacional de Contratações Públicas</a>, licença CC BY 4.0. Atualizado automaticamente às 6h, 12h e 18h.</p>
+  <p>O envio de proposta acontece na plataforma indicada no edital. Confira sempre o edital oficial. <a href="https://github.com/kuukou/radar-licitacoes" target="_blank" rel="noopener">Código no GitHub</a></p>
+</footer>
+
 <script src="assets/js/app.js"></script>
 </body>
 </html>
