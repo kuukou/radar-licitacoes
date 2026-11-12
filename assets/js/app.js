@@ -12,6 +12,7 @@ let dados = [];
 let filtrados = [];
 let favs = new Set();
 let mostrando = 0;
+let ufsSel = new Set();
 
 // ---------- utilidades ----------
 const store = {
@@ -61,12 +62,12 @@ function desenharRadar() {
 }
 
 // ---------- filtros ----------
-const CAMPOS = ["f-txt", "f-not", "f-uf", "f-mun", "f-mod", "f-vmin", "f-vmax", "f-dias", "ord"];
+const CAMPOS = ["f-txt", "f-not", "f-mun", "f-mod", "f-vmin", "f-vmax", "f-dias", "ord"];
+const EXTRAS = ["f-not", "f-mun", "f-mod", "f-vmin", "f-vmax", "f-dias"];
 
 function aplicar() {
   const inc = termos($("f-txt").value);
   const exc = termos($("f-not").value);
-  const uf = $("f-uf").value;
   const mun = norm($("f-mun").value.trim());
   const mod = $("f-mod").value;
   const vmin = parseFloat($("f-vmin").value);
@@ -77,7 +78,7 @@ function aplicar() {
 
   filtrados = dados.filter((r) => {
     if (soFav && !favs.has(r.id)) return false;
-    if (uf && r.uf !== uf) return false;
+    if (ufsSel.size && !ufsSel.has(r.uf)) return false;
     if (mun && !norm(r.municipio).includes(mun)) return false;
     if (mod && r.modalidade !== mod) return false;
     if (!isNaN(vmin) && r.valor < vmin) return false;
@@ -108,22 +109,42 @@ function salvarFiltros() {
   const f = {};
   CAMPOS.forEach((id) => (f[id] = $(id).value));
   f["f-fav"] = $("f-fav").checked;
+  f.ufs = [...ufsSel];
   store.set("filtros", f);
 }
 
 function contarFiltros() {
-  const n = ["f-not", "f-uf", "f-mun", "f-mod", "f-vmin", "f-vmax", "f-dias"].filter((id) => $(id).value).length + ($("f-fav").checked ? 1 : 0);
+  const n = EXTRAS.filter((id) => $(id).value).length + ($("f-fav").checked ? 1 : 0) + (ufsSel.size ? 1 : 0);
   $("n-filtros").textContent = n;
   $("n-filtros").hidden = n === 0;
 }
 
+const UFS = ["AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN","RO","RR","RS","SC","SE","SP","TO"];
+
 function montarOpcoes() {
-  const ufs = [...new Set(dados.map((r) => r.uf).filter(Boolean))].sort();
-  $("f-uf").innerHTML = `<option value="">Todos</option>` + ufs.map((u) => `<option>${u}</option>`).join("");
+  const porUf = {};
+  dados.forEach((r) => (porUf[r.uf] = (porUf[r.uf] || 0) + 1));
+  $("estados").innerHTML = UFS.map((u) => {
+    const n = porUf[u] || 0;
+    return `<button class="uf" data-uf="${u}" aria-pressed="${ufsSel.has(u)}" ${n ? "" : "disabled"} title="${n} licitações">
+      <b>${u}</b><small>${nfmt(n)}</small></button>`;
+  }).join("");
   const mods = [...new Set(dados.map((r) => r.modalidade).filter(Boolean))].sort();
   $("f-mod").innerHTML = `<option value="">Todas</option>` + mods.map((m) => `<option>${esc(m)}</option>`).join("");
-  const muns = [...new Set(dados.map((r) => r.municipio).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  atualizarMunicipios();
+}
+
+function atualizarMunicipios() {
+  const base = ufsSel.size ? dados.filter((r) => ufsSel.has(r.uf)) : dados;
+  const muns = [...new Set(base.map((r) => r.municipio).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   $("dl-mun").innerHTML = muns.map((m) => `<option value="${esc(m)}">`).join("");
+  $("f-mun").placeholder = ufsSel.size ? `Qualquer em ${[...ufsSel].join(", ")}` : "Qualquer";
+}
+
+function sincronizarEstados() {
+  document.querySelectorAll(".uf").forEach((b) => b.setAttribute("aria-pressed", ufsSel.has(b.dataset.uf)));
+  $("btn-ufs-limpar").hidden = !ufsSel.size;
+  $("estados-legenda").textContent = ufsSel.size ? `Estados selecionados: ${ufsSel.size}` : "Estados (toque para escolher um ou mais)";
 }
 
 // ---------- atalhos ----------
@@ -227,7 +248,12 @@ function renderMais() {
       ? `<li class="vazio"><strong>Nada encontrado com esses filtros.</strong>Tente menos palavras, outro estado ou um prazo maior.</li>`
       : `<li class="vazio"><strong>Os dados ainda estão sendo coletados.</strong>Volte em alguns minutos.</li>`;
   } else {
+    const antes = $("lista").children.length;
     $("lista").insertAdjacentHTML("beforeend", lote.map((r) => itemHTML(r, inc)).join(""));
+    if (!reduzMovimento) [...$("lista").children].slice(antes).forEach((li, i) => {
+      li.style.animationDelay = `${Math.min(i, 12) * 25}ms`;
+      li.classList.add("entra");
+    });
   }
   mostrando += lote.length;
   const total = filtrados.length;
@@ -255,6 +281,23 @@ function baixarPlanilha() {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+// ---------- tema ----------
+function rotuloTema() {
+  const escuro = document.documentElement.dataset.tema === "escuro";
+  $("btn-tema").setAttribute("aria-label", escuro ? "Ativar modo claro" : "Ativar modo escuro");
+}
+function trocarTema(ev) {
+  const novo = document.documentElement.dataset.tema === "escuro" ? "claro" : "escuro";
+  const aplicarTema = () => { document.documentElement.dataset.tema = novo; store.set("tema", novo); rotuloTema(); };
+  if (!document.startViewTransition || reduzMovimento) return aplicarTema();
+  const r = ev.currentTarget.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const raio = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const st = document.documentElement.style;
+  st.setProperty("--tx", x + "px"); st.setProperty("--ty", y + "px"); st.setProperty("--tr", raio + "px");
+  document.startViewTransition(aplicarTema);
+}
+
 // ---------- eventos ----------
 function abrirPainel(abrir) {
   const p = $("painel");
@@ -272,12 +315,30 @@ function ligarEventos() {
   let t;
   const deb = () => { clearTimeout(t); t = setTimeout(aplicar, 200); };
   ["f-txt", "f-not", "f-mun", "f-vmin", "f-vmax"].forEach((id) => $(id).addEventListener("input", deb));
-  ["f-uf", "f-mod", "f-dias", "ord", "f-fav"].forEach((id) => $(id).addEventListener("change", aplicar));
+  ["f-mod", "f-dias", "ord", "f-fav"].forEach((id) => $(id).addEventListener("change", aplicar));
+  $("estados").addEventListener("click", (ev) => {
+    const b = ev.target.closest(".uf");
+    if (!b || b.disabled) return;
+    const u = b.dataset.uf;
+    ufsSel.has(u) ? ufsSel.delete(u) : ufsSel.add(u);
+    $("f-mun").value = "";
+    sincronizarEstados(); atualizarMunicipios(); aplicar();
+  });
+  $("btn-ufs-limpar").onclick = () => { ufsSel.clear(); sincronizarEstados(); atualizarMunicipios(); aplicar(); };
+  $("btn-tema").onclick = (ev) => trocarTema(ev);
+  $("btn-topo").onclick = () => window.scrollTo({ top: 0, behavior: reduzMovimento ? "auto" : "smooth" });
+  addEventListener("scroll", () => $("btn-topo").classList.toggle("visivel", scrollY > 700), { passive: true });
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver((ents) => {
+      if (ents.some((e) => e.isIntersecting) && mostrando < filtrados.length) renderMais();
+    }, { rootMargin: "600px 0px" }).observe($("sentinela"));
+  }
 
   $("btn-filtros").onclick = () => abrirPainel($("painel").hidden);
   $("btn-limpar").onclick = () => {
-    ["f-not", "f-uf", "f-mun", "f-mod", "f-vmin", "f-vmax", "f-dias"].forEach((id) => ($(id).value = ""));
+    EXTRAS.forEach((id) => ($(id).value = ""));
     $("f-fav").checked = false;
+    ufsSel.clear(); sincronizarEstados(); atualizarMunicipios();
     aplicar();
   };
   document.querySelectorAll("[data-atalho]").forEach((b) => (b.onclick = () => {
@@ -313,6 +374,9 @@ function ligarEventos() {
 // ---------- início ----------
 async function init() {
   favs = new Set(store.get("favs") || []);
+  const f = store.get("filtros");
+  if (f && Array.isArray(f.ufs)) ufsSel = new Set(f.ufs);
+  rotuloTema();
   ligarEventos();
   try {
     const res = await fetch("data/licitacoes.json?v=" + Date.now());
@@ -327,12 +391,13 @@ async function init() {
   } catch (e) {
     $("status").textContent = `Não foi possível carregar os dados (${e.message}). Recarregue a página em instantes.`;
   }
-  const f = store.get("filtros");
   if (f) {
     CAMPOS.forEach((id) => { if (f[id] != null) $(id).value = f[id]; });
     $("f-fav").checked = !!f["f-fav"];
-    if (["f-not", "f-uf", "f-mun", "f-mod", "f-vmin", "f-vmax"].some((id) => f[id])) abrirPainel(true);
+    if (EXTRAS.some((id) => f[id]) || ufsSel.size) abrirPainel(true);
   }
+  sincronizarEstados();
+  atualizarMunicipios();
   aplicar();
 }
 
