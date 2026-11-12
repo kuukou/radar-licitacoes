@@ -40,24 +40,29 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 |---|---|
 | 🔎 **Busca por palavras** | Procura no objeto, informações complementares, órgão, unidade e município, sem diferenciar acentos. Separe por vírgula para buscar **qualquer uma** (`cadeira, mesa, armário`). |
 | 🚫 **Excluir palavras** | Remove resultados indesejados (`locação, serviço`). |
-| 🗺️ **Local** | Filtro por UF e município, com sugestões automáticas. |
-| 📋 **Modalidade** | Pregão eletrônico, dispensa, concorrência, credenciamento etc. |
-| 💰 **Faixa de valor** | Valor estimado mínimo e máximo. |
-| ⏰ **Prazo** | Mostra só o que encerra em até *X* dias. Prazos curtos ficam em destaque: vermelho para menos de 2 dias, laranja para menos de 7. |
-| ↕️ **Ordenação** | Por prazo de encerramento, valor ou data de publicação. |
-| ⭐ **Favoritas** | Marque licitações e filtre só as favoritas (ficam salvas no seu navegador). |
-| 📤 **Exportar CSV** | Baixa o resultado filtrado em CSV compatível com Excel. |
-| 🔗 **Links diretos** | Cada item leva ao edital no PNCP e ao sistema onde acontece a disputa. |
-| 💾 **Memória** | Os últimos filtros usados ficam salvos no seu navegador. |
+| 🗺️ **Estados e municípios** | Marque um ou mais estados. O campo de município sugere só cidades dos estados marcados. |
+| 📋 **Modalidade, valor e prazo** | Pregão, dispensa, concorrência etc.; faixa de valor estimado; "encerra em até *X* dias". |
+| 🆕 **Novas desde a última visita** | Selo "Nova" e atalho para ver só o que apareceu desde a sua visita anterior. |
+| 🔖 **Buscas salvas** | Guarde um conjunto de filtros com nome e reabra com um clique. |
+| 🔗 **Link da busca** | Os filtros ficam no endereço da página: copie e envie a busca pronta para alguém. |
+| 📡 **Radar** | Cada ponto é uma licitação que encerra em até 7 dias. Passe o mouse ou toque para ver; "Ver na lista" leva até ela. |
+| 📦 **Itens da licitação** | Ao abrir um cartão, o site busca no PNCP o que está sendo comprado (descrição, quantidade e valor unitário). |
+| 📅 **Prazo na agenda** | Baixa um evento `.ics` com o encerramento e lembretes, para Google Agenda, Outlook ou celular. |
+| ⭐ **Favoritas** | Marque licitações e filtre só as favoritas. |
+| 📤 **Baixar planilha** | Exporta o resultado filtrado em CSV compatível com Excel. |
+| 🌙 **Modo escuro** | Troca de tema animada; a escolha fica salva. |
+
+> Favoritas, buscas salvas, tema e a marcação de "novas" ficam guardados **no navegador de cada pessoa** (`localStorage`). Não há login nem servidor: cada visitante tem a sua própria lista, e nada é compartilhado entre aparelhos.
 
 ## Como usar o site
 
 1. Acesse **https://kuukou.github.io/radar-licitacoes**.
-2. No topo aparecem o total de licitações abertas e a data da última atualização.
-3. Digite as palavras de interesse e ajuste os filtros. Os resultados atualizam na hora.
-4. Clique no texto do objeto para expandir a descrição completa.
-5. Use **Ver no PNCP ↗** para abrir o edital e **Sistema de origem ↗** para ir à plataforma da disputa.
-6. Use **Exportar CSV** para levar a lista para uma planilha.
+2. Digite o que você vende no campo de busca. Os resultados atualizam na hora.
+3. Use os atalhos (Novas, Encerra em 7 dias, Pregão eletrônico, Dispensa, Favoritas) ou abra **Filtros** para estados, município, modalidade, valor e prazo.
+4. Os filtros ativos aparecem acima da lista. Clique no ✕ de um deles para removê-lo.
+5. Clique em uma licitação para ver detalhes, itens e o botão de agenda.
+6. Use **Abrir edital** para ir ao PNCP e **Onde enviar proposta** para ir à plataforma da disputa.
+7. Gostou da busca? **Salvar esta busca** guarda para depois; **Copiar link da busca** gera um endereço para compartilhar.
 
 > ⚠️ O PNCP **divulga** as contratações. O envio de proposta, a sessão e os lances acontecem na plataforma indicada no edital (Compras.gov.br, BLL, Licitações-e, portais estaduais e municipais etc.). Sempre confira prazos e condições no edital oficial.
 
@@ -72,7 +77,7 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
  └──────────┬───────────┘  JSON  └─────────────────────────┘
             │ grava e faz commit
             ▼
-   data/licitacoes.json
+   data/indice.json  +  data/uf/<UF>.json
             │ GitHub Pages publica
             ▼
  ┌──────────────────────┐
@@ -81,10 +86,15 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
  └──────────────────────┘
 ```
 
-1. **Coleta.** A Action [`Atualizar licitações`](.github/workflows/atualizar.yml) roda o script [`scripts/atualizar.py`](scripts/atualizar.py), que consulta o endpoint público `GET /v1/contratacoes/proposta` do PNCP **UF por UF**, com paginação, novas tentativas automáticas e 4 requisições simultâneas, respeito ao limite de taxa do PNCP (HTTP 429), segunda rodada para páginas que falharam e limite de 75 minutos por coleta (se o PNCP estiver lento, salva o que já baixou). O motivo dos erros fica registrado no próprio JSON (`erros`).
-2. **Validação.** Os registros são normalizados, deduplicados pelo número de controle PNCP e conferidos (a API às vezes ignora filtros). Licitações já encerradas são descartadas.
-3. **Publicação.** O resultado vai para [`data/licitacoes.json`](data/licitacoes.json) com um commit automático, e o GitHub Pages publica a nova versão.
-4. **Consulta.** O site carrega esse arquivo uma vez e faz todos os filtros no próprio navegador, por isso é instantâneo.
+1. **Coleta incremental.** A Action [`Atualizar licitações`](.github/workflows/atualizar.yml) roda [`scripts/atualizar.py`](scripts/atualizar.py), que consulta o endpoint público `GET /v1/contratacoes/proposta` do PNCP estado por estado. A API é lenta e instável (são cerca de 700 páginas para o Brasil todo), então o coletor:
+   - aproveita o que já foi baixado em execuções anteriores;
+   - começa pelos estados há mais tempo sem uma varredura completa;
+   - só substitui um estado por inteiro quando todas as páginas dele vieram; se faltou alguma, soma o que veio ao que já existia;
+   - faz 3 requisições simultâneas, com novas tentativas e espera crescente em caso de erro;
+   - para ao atingir o limite de tempo (150 minutos), grava o que tem e continua na próxima execução.
+2. **Arquivos por estado.** Cada estado vira um arquivo em `data/uf/`. O `data/indice.json` guarda os totais, os pontos do radar e o diagnóstico da última coleta (`falhas`, `erros`, `duracao_seg`).
+3. **Publicação.** A Action faz um commit com os dados e o GitHub Pages publica a nova versão.
+4. **Consulta.** O site lê o índice, carrega só os estados necessários (todos, ou apenas os que você marcou) e filtra tudo no navegador. Os itens de cada licitação são buscados direto no PNCP quando o cartão é aberto.
 
 ## Estrutura do repositório
 
@@ -92,10 +102,12 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 radar-licitacoes/
 ├── index.html                    # Página do site
 ├── assets/
-│   ├── css/app.css               # Estilos
-│   └── js/app.js                 # Lógica: carga dos dados, filtros, tabela, CSV
-├── data/
-│   └── licitacoes.json           # Dados coletados (gerado automaticamente — não editar)
+│   ├── css/app.css               # Estilos (tema claro e escuro)
+│   ├── js/app.js                 # Lógica: carga dos dados, filtros, lista, radar, agenda, CSV
+│   └── img/og.png                # Imagem de prévia ao compartilhar o link
+├── data/                         # Gerado automaticamente — não editar
+│   ├── indice.json               # Totais por estado, pontos do radar, diagnóstico da coleta
+│   └── uf/<UF>.json              # Licitações abertas de cada estado
 ├── scripts/
 │   └── atualizar.py              # Coletor do PNCP (Python puro, sem dependências)
 ├── extensao-chrome/              # Versão extensão, que consulta o PNCP ao vivo
@@ -112,7 +124,7 @@ Para criar sua própria cópia do Radar:
 1. **Fork / cópia.** Faça um *fork* deste repositório ou crie um repositório **público** com estes arquivos.
 2. **GitHub Pages.** Em **Settings → Pages**, escolha **Source:** *Deploy from a branch*, **Branch:** `main`, pasta `/ (root)`, e clique em **Save**.
 3. **Permissões da Action.** Em **Settings → Actions → General → Workflow permissions**, marque **Read and write permissions**. Isso permite que a Action salve os dados.
-4. **Primeira coleta.** Em **Actions → Atualizar licitações → Run workflow**. A coleta do Brasil inteiro leva cerca de 10 a 30 minutos.
+4. **Primeira coleta.** Em **Actions → Atualizar licitações → Run workflow**. A varredura do Brasil inteiro leva de 1 a 3 horas, porque a API do PNCP é lenta. Se não der tempo, a execução seguinte continua de onde parou.
 5. **Pronto.** O site fica em `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO`.
 
 ### Mudar o horário das atualizações
@@ -130,8 +142,9 @@ Edite a linha `cron` em [`.github/workflows/atualizar.yml`](.github/workflows/at
 Requisitos: **Python 3.9+** (só a biblioteca padrão).
 
 ```bash
-# 1. Coletar os dados (gera data/licitacoes.json)
-python scripts/atualizar.py
+# 1. Coletar os dados (gera data/indice.json e data/uf/*.json)
+python scripts/atualizar.py                       # Brasil inteiro (demora)
+python scripts/atualizar.py --ufs SP,MG --limite 20   # só alguns estados, por até 20 minutos
 
 # 2. Servir o site
 python -m http.server 8000
@@ -148,17 +161,21 @@ A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que 
 
 | Sintoma | O que fazer |
 |---|---|
-| Site abre com "Os dados ainda não foram coletados" | Rode **Actions → Atualizar licitações → Run workflow** e aguarde ficar ✅. |
+| Site abre com "Os dados ainda estão sendo coletados" | Rode **Actions → Atualizar licitações → Run workflow** e aguarde ficar ✅. |
 | Site mostra dados antigos | Aguarde 1 a 2 minutos após a Action terminar e recarregue com **Ctrl+F5**. |
-| Action falhou ❌ na etapa *Coletar* | O PNCP às vezes fica instável. Rode de novo mais tarde. |
+| Um estado aparece com poucas licitações | A varredura dele ainda não foi concluída. As próximas execuções completam. |
+| Action falhou ❌ na etapa *Coletar* | O PNCP às vezes fica fora do ar. A próxima execução agendada tenta de novo. |
 | Action falhou ❌ na etapa *Publicar dados* com erro 403 | Ative **Read and write permissions** (passo 3 da instalação). |
-| Status mostra "X página(s) do PNCP falharam" | Parte dos dados não veio nessa coleta. A próxima execução normalmente completa. |
-| Valor aparece como "sigiloso / n/d" | O órgão não informou o valor estimado (orçamento sigiloso é permitido por lei). |
+| Quero saber por que faltaram páginas | Abra `data/indice.json`: os campos `falhas` e `erros` mostram quantas páginas faltaram e o motivo (`HTTP 500`, `TimeoutError` etc.). |
+| "Não foi possível carregar os itens agora" | O PNCP não respondeu a tempo. Os itens estão no edital. |
+| Valor aparece como "não divulgado" ou "simbólico" | O órgão não informou o valor estimado (orçamento sigiloso é permitido por lei) ou cadastrou um valor fictício, como R$ 1. |
+| Ao usar **Re-run jobs**, a coleta roda com código antigo | *Re-run* repete a execução antiga. Use sempre **Run workflow** para rodar a versão atual. |
 
 ## Limitações conhecidas
 
 - **Cobertura.** O radar mostra o que está no PNCP. Órgãos que ainda publicam só em portais próprios podem não aparecer.
-- **Atualização.** Os dados são atualizados 6 vezes por dia (a cada 3 horas, das 6h às 21h), não em tempo real. Para tempo real, use a extensão.
+- **Atualização.** A coleta roda 6 vezes por dia (a cada 3 horas, das 6h às 21h). Como a varredura completa é demorada, uma licitação nova pode levar algumas horas para aparecer. Para tempo real, use a extensão.
+- **Sem contas.** Favoritas e buscas salvas não sincronizam entre aparelhos, porque o site não tem servidor nem login.
 - **Qualidade da fonte.** Descrições, valores e municípios vêm como o órgão cadastrou e podem ter erros ou campos vazios.
 - **Busca textual.** A busca é feita localmente sobre os campos coletados. O conteúdo dos PDFs dos editais não é pesquisado.
 

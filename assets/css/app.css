@@ -425,3 +425,119 @@ html { scroll-behavior: smooth; scroll-padding-top: 150px; }
 
 .busca:has(.painel:not([hidden])) { position: static; backdrop-filter: none; background: none; }
 .painel-grade > label, .painel-grade input, .painel-grade select { min-width: 0; }
+
+/* ---------- topo enxuto para quem já visitou ---------- */
+.compacto .hero { padding: 20px 24px 4px; grid-template-columns: 1fr 132px; gap: 8px 32px; }
+.compacto .topo { margin-bottom: 0; }
+.compacto h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.compacto .hero-count { margin-top: 0; }
+.compacto .hero-count strong { font-size: clamp(36px, 5vw, 52px); }
+.compacto .hero-count span { max-width: none; font-size: 16px; }
+.compacto .radar-legenda { display: none; }
+
+/* ---------- radar interativo ---------- */
+.radar { position: relative; }
+.radar .alvo { fill: transparent; cursor: pointer; }
+.radar .foco { fill: none; stroke: var(--cobalto); stroke-width: 2; pointer-events: none; }
+.radar-pop {
+  position: absolute; right: 0; z-index: 6;
+  width: 300px; max-width: calc(100vw - 32px);
+  background: var(--papel); border: 1px solid var(--tinta); border-radius: var(--raio);
+  padding: 14px 16px; text-align: left;
+  box-shadow: 6px 6px 0 var(--cobalto);
+  animation: abrir .18s ease-out;
+}
+.radar-pop p { margin: 0; }
+.pop-prazo { font-size: 13px; font-weight: 700; color: var(--tinta-2); }
+.pop-prazo.urg { color: var(--urgente); }
+.pop-prazo.breve { color: var(--breve); }
+.pop-obj { margin-top: 4px !important; font-weight: 600; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pop-org { margin-top: 4px !important; font-size: 13px; color: var(--tinta-2); }
+.pop-acoes { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+
+.btn-mini {
+  border: 1px solid var(--linha); background: var(--papel); color: var(--tinta);
+  border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-mini:hover { border-color: var(--tinta); }
+.detalhes .btn-mini { margin-top: 14px; }
+
+/* ---------- atalhos, buscas salvas, filtros ativos ---------- */
+.atalhos { align-items: center; }
+.chip[hidden], .form-salvar[hidden] { display: none; }
+.chip.nova { border-color: var(--cobalto); color: var(--cobalto); font-weight: 600; }
+.chip.nova[aria-pressed="true"] { background: var(--cobalto); color: #fff; }
+:root[data-tema="escuro"] .chip.nova[aria-pressed="true"] { color: #0C1424; }
+.chip.acao { border-style: dashed; color: var(--tinta-2); }
+.salvas { display: contents; }
+.chip.salva { padding: 0; display: inline-flex; align-items: stretch; overflow: hidden; cursor: default; border-color: var(--tinta-3); }
+.chip.salva button { border: 0; background: none; cursor: pointer; font-size: 14px; }
+.chip.salva .salva-nome { padding: 6px 4px 6px 14px; font-weight: 600; }
+.chip.salva .salva-nome::before {
+  content: ""; display: inline-block; width: 9px; height: 12px; margin-right: 7px; vertical-align: -1px;
+  background: currentColor; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+}
+.chip.salva .salva-rm { padding: 0 11px 0 6px; color: var(--tinta-3); font-size: 12px; }
+.chip.salva .salva-rm:hover { color: var(--urgente); }
+.chip.salva[data-ativa="true"] { background: var(--tinta); border-color: var(--tinta); }
+.chip.salva[data-ativa="true"] button { color: var(--contra); }
+.form-salvar { display: inline-flex; gap: 6px; align-items: center; }
+.form-salvar input { border: 1px solid var(--tinta); border-radius: 999px; padding: 5px 14px; font-size: 14px; background: var(--papel); width: 200px; }
+.form-salvar button[type="submit"] { border: 0; background: var(--tinta); color: var(--contra); border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.form-salvar .link { margin: 0 0 0 4px; }
+
+.ativos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.ativos:empty { display: none; }
+.ativo {
+  border: 0; background: var(--tinta); color: var(--contra);
+  border-radius: 999px; padding: 4px 8px 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  animation: abrir .18s ease-out;
+}
+.ativo span { font-size: 11px; opacity: .7; }
+.ativo:hover span { opacity: 1; }
+.ativos .link { margin: 0 0 0 6px; font-size: 13px; }
+
+.busca.presa .dica { display: none; }
+.busca.presa .atalhos { margin-top: 8px; }
+.busca.presa .campo-principal input { padding: 11px 0; font-size: 16px; }
+
+/* ---------- cartões ---------- */
+.tag.nova { background: var(--cobalto); color: #fff; font-weight: 700; }
+:root[data-tema="escuro"] .tag.nova { color: #0C1424; }
+.tag.alerta { background: color-mix(in srgb, var(--breve) 18%, transparent); color: var(--breve); font-weight: 600; }
+.item.foco { animation: foco 2.4s ease-out; }
+@keyframes foco { 0%, 40% { box-shadow: 0 0 0 4px var(--marca); } 100% { box-shadow: 0 0 0 4px transparent; } }
+.carga { color: var(--tinta-3); font-size: 14px; }
+
+.itens:empty { display: none; }
+.itens { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--linha); max-width: 75ch; }
+.itens-titulo { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--tinta-2); }
+.itens-lista { margin: 0; padding-left: 22px; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+.itens-lista li::marker { color: var(--tinta-3); font-size: 12px; }
+.itens-lista span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.itens-lista small { display: block; color: var(--tinta-3); font-size: 12px; }
+.itens-msg { margin: 6px 0 0; font-size: 13px; color: var(--tinta-3); }
+.corpo .detalhes { cursor: auto; }
+
+/* ---------- carregando ---------- */
+.esqueleto {
+  height: 118px; border-radius: var(--raio); list-style: none;
+  background: linear-gradient(100deg, var(--papel) 30%, color-mix(in srgb, var(--papel) 60%, var(--fundo)) 50%, var(--papel) 70%) 0 0 / 250% 100%;
+  animation: brilho 1.3s linear infinite;
+}
+@keyframes brilho { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+@media (max-width: 900px) {
+  .compacto .hero { grid-template-columns: 1fr; }
+  .compacto .radar { display: none; }
+  .radar-pop { left: 50%; right: auto; transform: translateX(-50%); }
+}
+@media (max-width: 640px) {
+  .form-salvar { flex-basis: 100%; }
+  .form-salvar input { flex: 1; width: auto; min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto { animation: none; }
+}
+@media (max-width: 900px) { .radar-pop { animation: none; } }

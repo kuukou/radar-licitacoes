@@ -1,36 +1,64 @@
 """Coletor do Radar de Licitações.
 
-Baixa do PNCP (API de consulta pública) todas as contratações com recebimento
-de propostas em aberto, UF por UF, normaliza os campos usados pelo site e grava
-`data/licitacoes.json`.
+Baixa do PNCP (API de consulta pública) as contratações com recebimento de
+propostas em aberto e mantém os arquivos que o site lê:
 
-Uso local:  python scripts/atualizar.py   (Python 3.9+, sem dependências externas)
+    data/indice.json      resumo: totais por estado, pontos do radar, diagnóstico
+    data/uf/<UF>.json     licitações abertas de cada estado
+
+A API do PNCP é lenta e instável, então a coleta é incremental:
+
+- cada execução aproveita o que já foi baixado antes;
+- os estados há mais tempo sem uma varredura completa são baixados primeiro;
+- um estado só é substituído por inteiro quando todas as suas páginas vieram;
+  se faltou alguma página, o que veio é somado ao que já existia;
+- ao atingir o limite de tempo, grava o que tem e a próxima execução continua.
+
+Uso local (Python 3.9+, sem dependências externas):
+
+    python scripts/atualizar.py                      # coleta completa
+    python scripts/atualizar.py --ufs AC,RR --limite 5
+    python scripts/atualizar.py --so-converter       # só regrava os arquivos, sem acessar o PNCP
 """
-import json, time, pathlib, collections, threading, urllib.error, datetime as dt, urllib.request, urllib.parse, concurrent.futures as cf
+import argparse, collections, json, pathlib, re, threading, time
+import datetime as dt
+import urllib.error, urllib.parse, urllib.request
+import concurrent.futures as cf
 
 API = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta"
 UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split()
-SAIDA = pathlib.Path(__file__).resolve().parent.parent / "data" / "licitacoes.json"
-DATA_FINAL = (dt.date.today() + dt.timedelta(days=365)).strftime("%Y%m%d")
+RAIZ = pathlib.Path(__file__).resolve().parent.parent
+DADOS = RAIZ / "data"
+LEGADO = DADOS / "licitacoes.json"          # formato antigo (arquivo único)
+BRT = dt.timezone(dt.timedelta(hours=-3))
+ID_PADRAO = re.compile(r"^\d{14}-\d+-\d+/\d{4}$")
+RADAR_MAX = 160
 
 INICIO = time.time()
-ERROS = collections.Counter()   # motivo -> quantidade (vai para o JSON, para diagnóstico)
+LIMITE_SEG = 150 * 60
+ERROS = collections.Counter()               # motivo -> quantidade (vai para o índice)
 _lock = threading.Lock()
 
 
-def _erro(motivo):
-    with _lock:
-        ERROS[motivo] += 1
+def agora_brt():
+    return dt.datetime.now(BRT).replace(tzinfo=None, microsecond=0)
 
 
-def get(params, pagina, tentativas=5):
-    """Busca uma página. Respeita Retry-After e espera mais quando o PNCP limita (429) ou falha (5xx)."""
-    qs = urllib.parse.urlencode({**params, "pagina": pagina, "tamanhoPagina": 50})
+def estourou():
+    return time.time() - INICIO > LIMITE_SEG
+
+
+# ---------------------------------------------------------------- PNCP
+def get(uf, pagina, data_final, tentativas=4):
+    """Busca uma página. Devolve o JSON, ou None se não conseguiu."""
+    qs = urllib.parse.urlencode({"dataFinal": data_final, "uf": uf, "pagina": pagina, "tamanhoPagina": 50})
     for t in range(1, tentativas + 1):
-        espera = 3 * t * t
+        espera = 5 * t * t
         try:
-            req = urllib.request.Request(f"{API}?{qs}", headers={"Accept": "application/json", "User-Agent": "radar-licitacoes (github.com/kuukou/radar-licitacoes)"})
-            with urllib.request.urlopen(req, timeout=90) as r:
+            req = urllib.request.Request(f"{API}?{qs}", headers={
+                "Accept": "application/json",
+                "User-Agent": "radar-licitacoes (github.com/kuukou/radar-licitacoes)"})
+            with urllib.request.urlopen(req, timeout=120) as r:
                 if r.status == 204:
                     return {"data": [], "totalPaginas": 0}
                 return json.loads(r.read().decode("utf-8"))
@@ -40,107 +68,241 @@ def get(params, pagina, tentativas=5):
             if ra and ra.isdigit():
                 espera = max(espera, int(ra))
             elif e.code == 429:
-                espera = 15 * t
+                espera = 30 * t
         except Exception as e:
             motivo = type(e).__name__
-        _erro(motivo)
-        if t == tentativas or time.time() - INICIO > LIMITE_SEG:
-            print(f"  falhou uf={params.get('uf')} p{pagina}: {motivo}", flush=True)
+        with _lock:
+            ERROS[motivo] += 1
+        if t == tentativas or estourou():
+            print(f"  falhou {uf} p{pagina}: {motivo}", flush=True)
             return None
         time.sleep(espera)
 
 
 def norm(c):
+    """Reduz um registro do PNCP aos campos usados pelo site (campos vazios são omitidos)."""
     org, un = c.get("orgaoEntidade") or {}, c.get("unidadeOrgao") or {}
     cnpj, ano, seq = org.get("cnpj", ""), c.get("anoCompra"), c.get("sequencialCompra")
-    return {
-        "id": c.get("numeroControlePNCP") or f"{cnpj}-{ano}-{seq}",
+    id_ = c.get("numeroControlePNCP") or f"{cnpj}-{ano}-{seq}"
+    orgao, unidade = (org.get("razaoSocial") or "").strip(), (un.get("nomeUnidade") or "").strip()
+    disputa = c.get("modoDisputaNome") or ""
+    situacao = c.get("situacaoCompraNome") or ""
+    r = {
+        "id": id_,
         "objeto": (c.get("objetoCompra") or "").strip(),
-        "info": (c.get("informacaoComplementar") or "").strip()[:300],
-        "orgao": org.get("razaoSocial", ""),
-        "unidade": un.get("nomeUnidade", ""),
-        "uf": un.get("ufSigla", ""),
-        "municipio": un.get("municipioNome", ""),
-        "modalidade": c.get("modalidadeNome", ""),
-        "disputa": c.get("modoDisputaNome", ""),
+        "info": (c.get("informacaoComplementar") or "").strip()[:200],
+        "orgao": orgao,
+        "unidade": "" if unidade.lower() == orgao.lower() else unidade,
+        "uf": un.get("ufSigla") or "",
+        "municipio": un.get("municipioNome") or "",
+        "modalidade": c.get("modalidadeNome") or "",
+        "disputa": "" if disputa.lower().startswith("não se aplica") else disputa,
         "srp": bool(c.get("srp")),
         "valor": float(c.get("valorTotalEstimado") or 0),
         "abertura": c.get("dataAberturaProposta"),
         "encerra": c.get("dataEncerramentoProposta"),
         "publicada": c.get("dataPublicacaoPncp"),
         "numero": "/".join(str(x) for x in [c.get("numeroCompra"), ano] if x),
-        "link": f"https://pncp.gov.br/app/editais/{cnpj}/{ano}/{seq}" if cnpj and ano and seq else (c.get("linkSistemaOrigem") or ""),
         "origem": c.get("linkSistemaOrigem") or "",
+        "sit": "" if situacao == "Divulgada no PNCP" else situacao,
     }
+    if not ID_PADRAO.match(id_):            # o site monta o link a partir do id; só guarda se não der
+        r["link"] = f"https://pncp.gov.br/app/editais/{cnpj}/{ano}/{seq}" if cnpj and ano and seq else r["origem"]
+    return {k: v for k, v in r.items() if v}
 
-WORKERS = 4
-LIMITE_SEG = 75 * 60   # para de baixar após 75 min e salva o que já tem
+
+# ---------------------------------------------------------------- dados anteriores
+def carregar_anterior():
+    ant = {uf: {"itens": {}, "completa": None, "v": None, "bruto": None} for uf in UFS}
+    try:
+        indice = json.loads((DADOS / "indice.json").read_text(encoding="utf-8"))
+    except Exception:
+        indice = {}
+    for uf in UFS:
+        arq = DADOS / "uf" / f"{uf}.json"
+        if not arq.exists():
+            continue
+        try:
+            d = json.loads(arq.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        meta = (indice.get("ufs") or {}).get(uf) or {}
+        ant[uf].update(itens={r["id"]: r for r in d.get("itens", [])},
+                       completa=meta.get("completa"), v=meta.get("v"),
+                       bruto=serializar_itens(d.get("itens", [])))
+    if LEGADO.exists():                     # importa o arquivo único antigo, sem sobrepor o que já existe
+        try:
+            for r in json.loads(LEGADO.read_text(encoding="utf-8")).get("itens", []):
+                uf = r.get("uf")
+                if uf in ant and r.get("id") and r["id"] not in ant[uf]["itens"]:
+                    if ID_PADRAO.match(r["id"]):
+                        r.pop("link", None)
+                    if r.get("unidade", "").lower() == r.get("orgao", "").lower():
+                        r.pop("unidade", None)
+                    if r.get("disputa", "").lower().startswith("não se aplica"):
+                        r.pop("disputa", None)
+                    r["info"] = (r.get("info") or "")[:200]
+                    r.setdefault("visto", r.get("publicada"))
+                    ant[uf]["itens"][r["id"]] = {k: v for k, v in r.items() if v}
+        except Exception as e:
+            print("Não consegui ler o arquivo antigo:", e)
+    return ant
 
 
+def consolidar(obtidos, completo, ant_uf, agora_s):
+    """Junta o que veio agora com o que já existia para um estado."""
+    prev, ja_completa = ant_uf["itens"], ant_uf["completa"]
+    res = {}
+    for id_, it in obtidos.items():
+        p = prev.get(id_)
+        if p:                               # já conhecido: mantém a data em que foi visto pela 1ª vez
+            it["visto"] = p.get("visto") or p.get("publicada") or agora_s
+        else:                               # novo: só carimba "agora" se o estado já esteve completo antes
+            it["visto"] = agora_s if ja_completa else (it.get("publicada") or agora_s)
+        res[id_] = it
+    for id_, p in prev.items():
+        if id_ in res:
+            continue
+        if completo:                        # sumiu de uma varredura completa:
+            if p.get("aus"):                #   segunda vez seguida -> remove
+                continue
+            p = dict(p, aus=1)              #   primeira vez -> mantém e marca
+        res[id_] = p
+    return {i: r for i, r in res.items() if not r.get("encerra") or r["encerra"] >= agora_s}
+
+
+# ---------------------------------------------------------------- gravação
+def serializar_itens(itens):
+    linhas = [json.dumps(r, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+              for r in sorted(itens, key=lambda r: r["id"])]
+    return ",\n".join(linhas)
+
+
+def amostra_radar(todos, agora):
+    lim = (agora + dt.timedelta(days=7)).isoformat()
+    prox = sorted((r for r in todos if r.get("encerra") and r["encerra"] <= lim), key=lambda r: r["encerra"])
+    passo = max(1, len(prox) // RADAR_MAX)
+    return [{"id": r["id"], "uf": r.get("uf", ""), "o": r.get("objeto", "")[:140], "g": r.get("orgao", ""),
+             "m": r.get("municipio", ""), "e": r["encerra"], **({"l": r["link"]} if r.get("link") else {})}
+            for r in prox[::passo][:RADAR_MAX]]
+
+
+def gravar(estado, agora, falhas, manter_legado):
+    """estado: {uf: {"itens": {id: item}, "completa": ts|None, "v": carimbo, "bruto": str|None}}"""
+    agora_s, carimbo = agora.isoformat(), agora.strftime("%Y%m%d%H%M")
+    (DADOS / "uf").mkdir(parents=True, exist_ok=True)
+    ufs, todos = {}, []
+    for uf in UFS:
+        e = estado[uf]
+        itens = list(e["itens"].values())
+        for r in itens:                     # "visto" igual à publicação é o padrão: não precisa gravar
+            if r.get("visto") and r.get("visto") == r.get("publicada"):
+                del r["visto"]
+        todos += itens
+        bruto = serializar_itens(itens)
+        arq = DADOS / "uf" / f"{uf}.json"
+        if not itens:
+            if arq.exists():
+                arq.unlink()
+            continue
+        if bruto != e["bruto"] or not arq.exists() or not e["v"]:
+            e["v"] = carimbo
+            arq.write_text('{"uf":"%s","itens":[\n%s\n]}\n' % (uf, bruto), encoding="utf-8")
+        ufs[uf] = {"n": len(itens), "v": e["v"], "completa": e["completa"]}
+    indice = {
+        "gerado": agora_s,
+        "atualizado": agora.strftime("%d/%m/%Y %H:%M"),
+        "total": len(todos),
+        "falhas": falhas,
+        "erros": dict(ERROS),
+        "duracao_seg": round(time.time() - INICIO),
+        "ufs": ufs,
+        "radar": amostra_radar(todos, agora),
+    }
+    (DADOS / "indice.json").write_text(json.dumps(indice, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    if LEGADO.exists() and not manter_legado:
+        LEGADO.unlink()
+    return indice
+
+
+# ---------------------------------------------------------------- principal
 def main():
-    inicio = INICIO
-    brutos, falhas = [], 0
+    global LIMITE_SEG
+    ap = argparse.ArgumentParser(description="Coletor do Radar de Licitações")
+    ap.add_argument("--ufs", help="estados a coletar, separados por vírgula (padrão: todos)")
+    ap.add_argument("--limite", type=float, default=150, help="limite de tempo em minutos (padrão: 150)")
+    ap.add_argument("--workers", type=int, default=3, help="requisições simultâneas (padrão: 3)")
+    ap.add_argument("--so-converter", action="store_true", help="não acessa o PNCP; só regrava os arquivos")
+    ap.add_argument("--manter-legado", action="store_true", help="não apaga data/licitacoes.json")
+    a = ap.parse_args()
+    LIMITE_SEG = a.limite * 60
+    alvo = [u for u in (a.ufs.upper().split(",") if a.ufs else UFS) if u in UFS]
 
-    # 1) primeira página de cada UF (descobre quantas páginas cada uma tem)
-    with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        primeiras = dict(zip(UFS, ex.map(lambda uf: get({"dataFinal": DATA_FINAL, "uf": uf}, 1), UFS)))
-    tarefas = []
-    for uf, p1 in primeiras.items():
-        if p1 is None:
-            falhas += 1
-            continue
-        brutos += [(uf, c) for c in p1.get("data") or []]
-        tarefas += [(uf, n) for n in range(2, (p1.get("totalPaginas") or 1) + 1)]
-    print(f"{len(tarefas) + len(UFS)} páginas no total", flush=True)
+    agora = agora_brt()
+    agora_s = agora.isoformat()
+    data_final = (agora.date() + dt.timedelta(days=365)).strftime("%Y%m%d")
+    estado = carregar_anterior()
+    print(f"Dados anteriores: {sum(len(e['itens']) for e in estado.values())} licitações", flush=True)
 
-    # 2) demais páginas, todas em paralelo
-    puladas = 0
-    pendentes = []
-    n_de = [n for _, n in tarefas]
+    falhas = 0
+    if not a.so_converter:
+        obtidos = {uf: {} for uf in alvo}
+        faltou = collections.Counter()      # uf -> páginas que não vieram
 
-    def baixar(t):
-        uf, n = t
-        if time.time() - inicio > LIMITE_SEG:
-            return uf, "pulada"
-        return uf, get({"dataFinal": DATA_FINAL, "uf": uf}, n)
-    with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
-        for i, (uf, p) in enumerate(ex.map(baixar, tarefas), 1):
-            if p == "pulada":
-                puladas += 1
-            elif p is None:
-                falhas += 1
-                pendentes.append((uf, n_de[i - 1]))
-            else:
-                brutos += [(uf, c) for c in p.get("data") or []]
-            if i % 100 == 0:
-                print(f"  {i}/{len(tarefas)} páginas · {time.time() - inicio:.0f}s", flush=True)
+        def guardar(uf, pagina):
+            for c in pagina.get("data") or []:
+                r = norm(c)
+                if r.get("uf", uf) == uf:   # a API às vezes ignora o filtro de UF
+                    r["uf"] = uf
+                    obtidos[uf][r["id"]] = r
 
-    # 3) segunda rodada, mais devagar, só para as páginas que falharam
-    if pendentes and time.time() - inicio < LIMITE_SEG:
-        print(f"Segunda rodada: {len(pendentes)} páginas", flush=True)
-        time.sleep(30)
-        with cf.ThreadPoolExecutor(max_workers=2) as ex:
-            for uf, p in ex.map(baixar, pendentes):
-                if p not in (None, "pulada"):
-                    falhas -= 1
-                    brutos += [(uf, c) for c in p.get("data") or []]
+        # 1) primeira página de cada estado: descobre quantas páginas cada um tem
+        with cf.ThreadPoolExecutor(max_workers=a.workers) as ex:
+            primeiras = dict(zip(alvo, ex.map(lambda uf: get(uf, 1, data_final), alvo)))
+        paginas = {}
+        for uf, p1 in primeiras.items():
+            if p1 is None:
+                faltou[uf] += 1
+                continue
+            guardar(uf, p1)
+            paginas[uf] = p1.get("totalPaginas") or 1
 
-    todos = {}
-    for uf, c in brutos:
-        r = norm(c)
-        if r["uf"] and r["uf"] != uf:   # a API às vezes ignora filtros
-            continue
-        todos[r["id"]] = r
+        # 2) demais páginas: primeiro quem está há mais tempo sem varredura completa; depois os menores
+        ordem = sorted(paginas, key=lambda uf: (estado[uf]["completa"] or "", paginas[uf]))
+        tarefas = [(uf, n) for uf in ordem for n in range(2, paginas[uf] + 1)]
+        print(f"{len(tarefas) + len(alvo)} páginas no total · ordem: {' '.join(ordem)}", flush=True)
 
-    agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3)))
-    lista = [r for r in todos.values() if not r["encerra"] or r["encerra"] >= agora.strftime("%Y-%m-%dT%H:%M:%S")]
-    out = {"atualizado": agora.strftime("%d/%m/%Y %H:%M"), "falhas": falhas + puladas,
-           "erros": dict(ERROS), "duracao_seg": round(time.time() - inicio), "itens": lista}
-    SAIDA.parent.mkdir(parents=True, exist_ok=True)
-    with open(SAIDA, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print("Erros:", dict(ERROS))
-    print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam; {puladas} puladas por tempo; {time.time() - inicio:.0f}s")
+        def baixar(t):
+            uf, n = t
+            return uf, (None if estourou() else get(uf, n, data_final))
+
+        with cf.ThreadPoolExecutor(max_workers=a.workers) as ex:
+            for i, (uf, p) in enumerate(ex.map(baixar, tarefas), 1):
+                if p is None:
+                    faltou[uf] += 1
+                else:
+                    guardar(uf, p)
+                if i % 25 == 0:
+                    print(f"  {i}/{len(tarefas)} páginas · {time.time() - INICIO:.0f}s", flush=True)
+
+        # 3) junta com o que já existia
+        for uf in alvo:
+            completo = uf in paginas and faltou[uf] == 0
+            estado[uf]["itens"] = consolidar(obtidos[uf], completo, estado[uf], agora_s)
+            if completo:
+                estado[uf]["completa"] = agora_s
+        falhas = sum(faltou.values())
+        completos = [uf for uf in alvo if uf in paginas and faltou[uf] == 0]
+        print(f"Estados completos nesta coleta ({len(completos)}): {' '.join(completos)}")
+        print("Erros:", dict(ERROS))
+
+    # licitações já encerradas saem, inclusive dos estados não coletados agora
+    for uf in UFS:
+        estado[uf]["itens"] = {i: r for i, r in estado[uf]["itens"].items()
+                               if not r.get("encerra") or r["encerra"] >= agora_s}
+
+    indice = gravar(estado, agora, falhas, a.manter_legado)
+    print(f"TOTAL: {indice['total']} licitações abertas · {falhas} páginas faltaram · {time.time() - INICIO:.0f}s")
 
 
 if __name__ == "__main__":
