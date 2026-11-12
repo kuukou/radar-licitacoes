@@ -13,7 +13,10 @@ UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC S
 SAIDA = pathlib.Path(__file__).resolve().parent.parent / "data" / "licitacoes.json"
 DATA_FINAL = (dt.date.today() + dt.timedelta(days=365)).strftime("%Y%m%d")
 
-def get(params, pagina, tentativas=5):
+INICIO = time.time()
+
+
+def get(params, pagina, tentativas=4):
     qs = urllib.parse.urlencode({**params, "pagina": pagina, "tamanhoPagina": 50})
     for t in range(1, tentativas + 1):
         try:
@@ -23,7 +26,7 @@ def get(params, pagina, tentativas=5):
                     return {"data": [], "totalPaginas": 0}
                 return json.loads(r.read().decode("utf-8"))
         except Exception as e:
-            if t == tentativas:
+            if t == tentativas or time.time() - INICIO > LIMITE_SEG:
                 print(f"  falhou {params} p{pagina}: {e}")
                 return None
             time.sleep(2 * t * t)
@@ -51,11 +54,12 @@ def norm(c):
         "origem": c.get("linkSistemaOrigem") or "",
     }
 
-WORKERS = 8
+WORKERS = 10
+LIMITE_SEG = 75 * 60   # para de baixar após 75 min e salva o que já tem
 
 
 def main():
-    inicio = time.time()
+    inicio = INICIO
     brutos, falhas = [], 0
 
     # 1) primeira página de cada UF (descobre quantas páginas cada uma tem)
@@ -68,20 +72,26 @@ def main():
             continue
         brutos += [(uf, c) for c in p1.get("data") or []]
         tarefas += [(uf, n) for n in range(2, (p1.get("totalPaginas") or 1) + 1)]
-    print(f"{len(tarefas) + len(UFS)} páginas no total")
+    print(f"{len(tarefas) + len(UFS)} páginas no total", flush=True)
 
     # 2) demais páginas, todas em paralelo
+    puladas = 0
+
     def baixar(t):
         uf, n = t
+        if time.time() - inicio > LIMITE_SEG:
+            return uf, "pulada"
         return uf, get({"dataFinal": DATA_FINAL, "uf": uf}, n)
     with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
         for i, (uf, p) in enumerate(ex.map(baixar, tarefas), 1):
-            if p is None:
+            if p == "pulada":
+                puladas += 1
+            elif p is None:
                 falhas += 1
             else:
                 brutos += [(uf, c) for c in p.get("data") or []]
             if i % 100 == 0:
-                print(f"  {i}/{len(tarefas)} páginas")
+                print(f"  {i}/{len(tarefas)} páginas · {time.time() - inicio:.0f}s", flush=True)
 
     todos = {}
     for uf, c in brutos:
@@ -92,11 +102,11 @@ def main():
 
     agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3)))
     lista = [r for r in todos.values() if not r["encerra"] or r["encerra"] >= agora.strftime("%Y-%m-%dT%H:%M:%S")]
-    out = {"atualizado": agora.strftime("%d/%m/%Y %H:%M"), "falhas": falhas, "itens": lista}
+    out = {"atualizado": agora.strftime("%d/%m/%Y %H:%M"), "falhas": falhas + puladas, "itens": lista}
     SAIDA.parent.mkdir(parents=True, exist_ok=True)
     with open(SAIDA, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam; {time.time() - inicio:.0f}s")
+    print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam; {puladas} puladas por tempo; {time.time() - inicio:.0f}s")
 
 
 if __name__ == "__main__":
