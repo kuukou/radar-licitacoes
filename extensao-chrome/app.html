@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Radar de Licitações — PNCP</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <h1>Radar de Licitações <span>PNCP · propostas abertas</span></h1>
+  <div id="status" class="status">Escolha a UF e clique em <b>Buscar no PNCP</b>.</div>
+</header>
+
+<section class="card">
+  <h2>1. Buscar no PNCP</h2>
+  <div class="row">
+    <label>UF
+      <select id="q-uf"></select>
+    </label>
+    <label>Modalidade
+      <select id="q-mod"></select>
+    </label>
+    <label>Encerra até
+      <input type="date" id="q-ate">
+    </label>
+    <button id="btn-buscar" class="primary">Buscar no PNCP</button>
+    <button id="btn-parar" class="ghost" hidden>Parar</button>
+  </div>
+  <div class="progress" id="prog" hidden><div id="prog-bar"></div></div>
+  <p class="hint">Dica: "Todas" as UFs pode ter milhares de registros e levar alguns minutos. O resultado fica salvo; da próxima vez abre na hora.</p>
+</section>
+
+<section class="card">
+  <h2>2. Filtrar</h2>
+  <div class="row">
+    <label class="grow">Palavras (objeto, órgão, cidade) — use vírgula para "qualquer uma"
+      <input type="search" id="f-txt" placeholder="ex.: cadeira, mobiliário, armário">
+    </label>
+    <label>Excluir palavras
+      <input type="search" id="f-not" placeholder="ex.: locação">
+    </label>
+  </div>
+  <div class="row">
+    <label>UF
+      <select id="f-uf"><option value="">Todas</option></select>
+    </label>
+    <label>Município
+      <input type="search" id="f-mun" list="dl-mun" placeholder="qualquer">
+      <datalist id="dl-mun"></datalist>
+    </label>
+    <label>Modalidade
+      <select id="f-mod"><option value="">Todas</option></select>
+    </label>
+    <label>Valor mín. (R$)
+      <input type="number" id="f-vmin" min="0" step="1000">
+    </label>
+    <label>Valor máx. (R$)
+      <input type="number" id="f-vmax" min="0" step="1000">
+    </label>
+    <label>Encerra em até (dias)
+      <input type="number" id="f-dias" min="0" placeholder="qualquer">
+    </label>
+    <label class="chk"><input type="checkbox" id="f-fav"> Só favoritas</label>
+    <button id="btn-limpar" class="ghost">Limpar filtros</button>
+  </div>
+</section>
+
+<section class="card">
+  <div class="tbar">
+    <div id="resumo"></div>
+    <div class="row tight">
+      <label>Ordenar
+        <select id="ord">
+          <option value="enc-asc">Encerra antes</option>
+          <option value="enc-desc">Encerra depois</option>
+          <option value="val-desc">Maior valor</option>
+          <option value="val-asc">Menor valor</option>
+          <option value="pub-desc">Publicada recentemente</option>
+        </select>
+      </label>
+      <button id="btn-csv" class="ghost">Exportar CSV</button>
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th></th><th>Objeto</th><th>Órgão / Local</th><th>Modalidade</th><th class="num">Valor estimado</th><th>Encerra</th><th></th>
+    </tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+  <div class="pager">
+    <button id="pg-prev" class="ghost">‹ Anterior</button>
+    <span id="pg-info"></span>
+    <button id="pg-next" class="ghost">Próxima ›</button>
+  </div>
+</section>
+
+<footer>Dados: Portal Nacional de Contratações Públicas (pncp.gov.br) — CC BY 4.0. Sempre confira o edital e a plataforma de disputa antes de enviar proposta.</footer>
+<script src="app.js"></script>
+</body>
+</html>

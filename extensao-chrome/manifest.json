@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Radar de Licitações (PNCP)",
+  "version": "0.1.0",
+  "description": "Consulta e filtra licitações com propostas abertas no PNCP.",
+  "permissions": ["storage", "unlimitedStorage"],
+  "host_permissions": ["https://pncp.gov.br/*"],
+  "action": { "default_title": "Abrir Radar de Licitações" },
+  "background": { "service_worker": "bg.js" }
+}
