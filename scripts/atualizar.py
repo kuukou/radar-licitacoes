@@ -51,38 +51,53 @@ def norm(c):
         "origem": c.get("linkSistemaOrigem") or "",
     }
 
-def baixar_uf(uf):
-    params = {"dataFinal": DATA_FINAL, "uf": uf}
-    p1 = get(params, 1)
-    if not p1:
-        return uf, [], 1
-    itens, falhas = list(p1.get("data") or []), 0
-    for n in range(2, (p1.get("totalPaginas") or 1) + 1):
-        p = get(params, n)
-        if p is None:
-            falhas += 1
-        else:
-            itens += p.get("data") or []
-    print(f"{uf}: {len(itens)} registros, {falhas} páginas com falha")
-    return uf, itens, falhas
+WORKERS = 8
+
 
 def main():
-    todos, falhas = {}, 0
-    with cf.ThreadPoolExecutor(max_workers=4) as ex:
-        for uf, itens, f in ex.map(baixar_uf, UFS):
-            falhas += f
-            for c in itens:
-                r = norm(c)
-                if r["uf"] and r["uf"] != uf:   # a API às vezes ignora filtros
-                    continue
-                todos[r["id"]] = r
+    inicio = time.time()
+    brutos, falhas = [], 0
+
+    # 1) primeira página de cada UF (descobre quantas páginas cada uma tem)
+    with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
+        primeiras = dict(zip(UFS, ex.map(lambda uf: get({"dataFinal": DATA_FINAL, "uf": uf}, 1), UFS)))
+    tarefas = []
+    for uf, p1 in primeiras.items():
+        if p1 is None:
+            falhas += 1
+            continue
+        brutos += [(uf, c) for c in p1.get("data") or []]
+        tarefas += [(uf, n) for n in range(2, (p1.get("totalPaginas") or 1) + 1)]
+    print(f"{len(tarefas) + len(UFS)} páginas no total")
+
+    # 2) demais páginas, todas em paralelo
+    def baixar(t):
+        uf, n = t
+        return uf, get({"dataFinal": DATA_FINAL, "uf": uf}, n)
+    with cf.ThreadPoolExecutor(max_workers=WORKERS) as ex:
+        for i, (uf, p) in enumerate(ex.map(baixar, tarefas), 1):
+            if p is None:
+                falhas += 1
+            else:
+                brutos += [(uf, c) for c in p.get("data") or []]
+            if i % 100 == 0:
+                print(f"  {i}/{len(tarefas)} páginas")
+
+    todos = {}
+    for uf, c in brutos:
+        r = norm(c)
+        if r["uf"] and r["uf"] != uf:   # a API às vezes ignora filtros
+            continue
+        todos[r["id"]] = r
+
     agora = dt.datetime.now(dt.timezone(dt.timedelta(hours=-3)))
     lista = [r for r in todos.values() if not r["encerra"] or r["encerra"] >= agora.strftime("%Y-%m-%dT%H:%M:%S")]
     out = {"atualizado": agora.strftime("%d/%m/%Y %H:%M"), "falhas": falhas, "itens": lista}
     SAIDA.parent.mkdir(parents=True, exist_ok=True)
     with open(SAIDA, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam")
+    print(f"TOTAL: {len(lista)} licitações abertas; {falhas} páginas falharam; {time.time() - inicio:.0f}s")
+
 
 if __name__ == "__main__":
     main()

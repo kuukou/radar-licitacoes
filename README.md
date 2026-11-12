@@ -81,7 +81,7 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
  └──────────────────────┘
 ```
 
-1. **Coleta.** A Action [`Atualizar licitações`](.github/workflows/atualizar.yml) roda o script [`scripts/atualizar.py`](scripts/atualizar.py), que consulta o endpoint público `GET /v1/contratacoes/proposta` do PNCP **UF por UF**, com paginação, novas tentativas automáticas e 4 requisições simultâneas.
+1. **Coleta.** A Action [`Atualizar licitações`](.github/workflows/atualizar.yml) roda o script [`scripts/atualizar.py`](scripts/atualizar.py), que consulta o endpoint público `GET /v1/contratacoes/proposta` do PNCP **UF por UF**, com paginação, novas tentativas automáticas e até 8 requisições simultâneas.
 2. **Validação.** Os registros são normalizados, deduplicados pelo número de controle PNCP e conferidos (a API às vezes ignora filtros). Licitações já encerradas são descartadas.
 3. **Publicação.** O resultado vai para [`data/licitacoes.json`](data/licitacoes.json) com um commit automático, e o GitHub Pages publica a nova versão.
 4. **Consulta.** O site carrega esse arquivo uma vez e faz todos os filtros no próprio navegador, por isso é instantâneo.
