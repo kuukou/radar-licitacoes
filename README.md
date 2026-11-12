@@ -64,7 +64,7 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 ## Como funciona
 
 ```
-            3x por dia (06h, 12h, 18h)
+        6x por dia (a cada 3 horas, das 6h às 21h)
  ┌──────────────────────┐        ┌─────────────────────────┐
  │  GitHub Actions      │  API   │  PNCP — API de consulta │
  │  scripts/atualizar.py│ ─────► │  /v1/contratacoes/      │
@@ -120,7 +120,7 @@ Para criar sua própria cópia do Radar:
 Edite a linha `cron` em [`.github/workflows/atualizar.yml`](.github/workflows/atualizar.yml). O horário é em **UTC**, ou seja, Brasília + 3 horas:
 
 ```yaml
-- cron: "17 9,15,21 * * *"   # 06h17, 12h17 e 18h17 em Brasília
+- cron: "17 0,9,12,15,18,21 * * *"   # 06h17, 09h17, 12h17, 15h17, 18h17 e 21h17 em Brasília
 ```
 
 > O GitHub pode atrasar execuções agendadas em alguns minutos e **pausa agendamentos de repositórios sem atividade por 60 dias**. Como a própria Action faz commits, isso normalmente não acontece.
@@ -158,7 +158,7 @@ A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que 
 ## Limitações conhecidas
 
 - **Cobertura.** O radar mostra o que está no PNCP. Órgãos que ainda publicam só em portais próprios podem não aparecer.
-- **Atualização.** Os dados são atualizados 3 vezes por dia, não em tempo real. Para tempo real, use a extensão.
+- **Atualização.** Os dados são atualizados 6 vezes por dia (a cada 3 horas, das 6h às 21h), não em tempo real. Para tempo real, use a extensão.
 - **Qualidade da fonte.** Descrições, valores e municípios vêm como o órgão cadastrou e podem ter erros ou campos vazios.
 - **Busca textual.** A busca é feita localmente sobre os campos coletados. O conteúdo dos PDFs dos editais não é pesquisado.
 

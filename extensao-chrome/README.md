@@ -4,7 +4,7 @@ Versão do Radar que consulta a API do PNCP **ao vivo**, direto do navegador, se
 
 ## Quando usar
 
-- Para ver licitações publicadas há poucos minutos (o site atualiza 3 vezes por dia).
+- Para ver licitações publicadas há poucos minutos (o site atualiza a cada 3 horas, das 6h às 21h).
 - Como reserva, se a coleta automática do site falhar.
 
 Para o uso do dia a dia, prefira o site: https://kuukou.github.io/radar-licitacoes
