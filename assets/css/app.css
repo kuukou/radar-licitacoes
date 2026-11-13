@@ -618,14 +618,27 @@ html { scroll-behavior: smooth; scroll-padding-top: 150px; }
 @media (max-width: 640px) { .texto td:first-child { white-space: normal; } }
 
 /* ---------- radar pequeno que cresce ao passar o mouse (topo enxuto) ---------- */
-/* Ele ocupa espaço de verdade: o restante da página desce para dar lugar, em vez de ficar coberto. */
+/* O radar cresce para baixo, no canto direito, e a busca com os filtros encolhe para a esquerda
+   abrindo espaço: nada é coberto e a lista não sai do lugar. */
 @media (min-width: 901px) {
-  .compacto .hero { grid-template-columns: 1fr auto; align-items: start; }
-  .compacto .radar {
-    width: 132px; justify-self: end; cursor: zoom-in;
-    transition: width .3s cubic-bezier(.3, 1.2, .5, 1);
+  .compacto { --radar-p: 132px; --radar-g: 280px; --radar-tempo: .38s; --radar-curva: cubic-bezier(.22, 1, .36, 1); }
+  .compacto .hero { grid-template-columns: 1fr var(--radar-p); }
+  .compacto .radar { height: var(--radar-p); z-index: 8; }
+  .compacto .radar svg {
+    position: absolute; top: 0; right: 0; width: var(--radar-p); height: auto;
+    border-radius: 50%; background: var(--fundo); cursor: zoom-in;
+    transition: width var(--radar-tempo) var(--radar-curva);
   }
-  .compacto .radar:hover, .compacto .radar:focus-within, .compacto .radar.fixo { width: 320px; cursor: default; }
-  .compacto .radar-pop { top: calc(var(--py, .5) * 320px + 14px) !important; }
+  .compacto.radar-aberto .radar svg { width: var(--radar-g); cursor: default; }
+  .compacto .radar-pop { top: calc(var(--py, .5) * var(--radar-g) + 14px) !important; }
+
+  .compacto .busca { transition: padding-right var(--radar-tempo) var(--radar-curva); }
+  .compacto.radar-aberto .busca { padding-right: calc(24px + var(--radar-g) + 28px); }
+  /* os atalhos acompanham com um leve atraso, em sequência */
+  .compacto .busca .atalhos > * { transition: transform var(--radar-tempo) var(--radar-curva), background .15s, border-color .15s, color .15s; }
+  .compacto.radar-aberto .busca .dica { opacity: 0; }
+  .compacto .busca .dica { transition: opacity .2s; }
 }
-@media (prefers-reduced-motion: reduce) { .compacto .radar { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .compacto .radar svg, .compacto .busca { transition: none; }
+}

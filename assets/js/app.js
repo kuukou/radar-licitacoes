@@ -191,6 +191,12 @@ function desenharRadar() {
     `<circle class="alvo" data-i="${i}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7"/>`).join("");
 }
 
+// o radar pequeno fica aberto enquanto o mouse (ou o foco) está nele, ou enquanto há um ponto fixado
+function atualizarRadarAberto() {
+  const r = $("radar");
+  document.documentElement.classList.toggle("radar-aberto", radarFixo || r.matches(":hover") || r.matches(":focus-within"));
+}
+
 function mostrarPop(i, fixo) {
   const p = radarPts[i];
   if (!p) return;
@@ -211,13 +217,13 @@ function mostrarPop(i, fixo) {
   const svg = document.querySelector("#radar svg");
   pop.style.top = (p.y / 200 * svg.clientWidth + 14) + "px";
   pop.style.setProperty("--py", p.y / 200);       // usado quando o radar está no modo que expande
-  $("radar").classList.toggle("fixo", fixo);
   pop.hidden = false;
+  atualizarRadarAberto();
 }
 function esconderPop() {
   radarFixo = false;
-  $("radar").classList.remove("fixo");
   $("radar-pop").hidden = true;
+  atualizarRadarAberto();
   $("radar-foco").setAttribute("cx", -20);
 }
 
@@ -868,7 +874,10 @@ function ligarEventos() {
     const a = ev.target.closest(".alvo");
     if (a && !radarFixo) mostrarPop(+a.dataset.i, false);
   });
-  $("radar").addEventListener("mouseleave", () => { if (!radarFixo) esconderPop(); });
+  $("radar").addEventListener("mouseenter", atualizarRadarAberto);
+  $("radar").addEventListener("focusin", atualizarRadarAberto);
+  $("radar").addEventListener("focusout", () => setTimeout(atualizarRadarAberto, 0));
+  $("radar").addEventListener("mouseleave", () => { if (!radarFixo) esconderPop(); else atualizarRadarAberto(); });
   $("radar").addEventListener("click", (ev) => {
     const ver = ev.target.closest("[data-ver]");
     if (ver) { mostrarNaLista(radarPts[+ver.dataset.ver]); return; }
