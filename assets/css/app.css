@@ -618,21 +618,14 @@ html { scroll-behavior: smooth; scroll-padding-top: 150px; }
 @media (max-width: 640px) { .texto td:first-child { white-space: normal; } }
 
 /* ---------- radar pequeno que cresce ao passar o mouse (topo enxuto) ---------- */
+/* Ele ocupa espaço de verdade: o restante da página desce para dar lugar, em vez de ficar coberto. */
 @media (min-width: 901px) {
-  .compacto .radar { height: 132px; z-index: 8; }
-  .compacto .radar svg {
-    position: absolute; top: 0; right: 0; width: 132px; height: auto;
-    border-radius: 50%; background: var(--fundo); cursor: zoom-in;
-    transition: width .28s cubic-bezier(.3, 1.3, .5, 1), box-shadow .28s;
+  .compacto .hero { grid-template-columns: 1fr auto; align-items: start; }
+  .compacto .radar {
+    width: 132px; justify-self: end; cursor: zoom-in;
+    transition: width .3s cubic-bezier(.3, 1.2, .5, 1);
   }
-  .compacto .radar:hover svg, .compacto .radar:focus-within svg, .compacto .radar.fixo svg {
-    width: 320px; cursor: default;
-    box-shadow: 0 0 0 10px var(--fundo), 0 18px 40px rgba(12, 20, 36, .28);
-  }
+  .compacto .radar:hover, .compacto .radar:focus-within, .compacto .radar.fixo { width: 320px; cursor: default; }
   .compacto .radar-pop { top: calc(var(--py, .5) * 320px + 14px) !important; }
-  /* área invisível para o mouse não "cair" ao sair do círculo pequeno em direção ao grande */
-  .compacto .radar:hover::before, .compacto .radar.fixo::before {
-    content: ""; position: absolute; top: 0; right: 0; width: 320px; height: 320px;
-  }
 }
-@media (prefers-reduced-motion: reduce) { .compacto .radar svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .compacto .radar { transition: none; } }
