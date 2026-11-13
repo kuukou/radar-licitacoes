@@ -2,7 +2,7 @@ name: Atualizar licitações
 
 on:
   schedule:
-       - cron: "23 0,9,12,15,18,21 * * *"   # 06h23, 09h23, 12h23, 15h23, 18h23 e 21h23 (Brasília)
+       - cron: "23 3,9,15,21 * * *"   # 00h23, 06h23, 12h23 e 18h23 (Brasília)
   workflow_dispatch: {}
 
 permissions:
