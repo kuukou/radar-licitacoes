@@ -19,6 +19,7 @@
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Instalação e configuração](#instalação-e-configuração)
 - [Rodando localmente](#rodando-localmente)
+- [Login e sincronização (opcional)](#login-e-sincronização-opcional)
 - [Extensão para Chrome (opcional)](#extensão-para-chrome-opcional)
 - [Solução de problemas](#solução-de-problemas)
 - [Limitações conhecidas](#limitações-conhecidas)
@@ -52,8 +53,9 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 | ⭐ **Favoritas** | Marque licitações e filtre só as favoritas. |
 | 📤 **Baixar planilha** | Exporta o resultado filtrado em CSV compatível com Excel. |
 | 🌙 **Modo escuro** | Troca de tema animada; a escolha fica salva. |
+| 👤 **Conta (opcional)** | Com login por e-mail e senha, favoritas e buscas salvas acompanham a pessoa em qualquer aparelho. |
 
-> Favoritas, buscas salvas, tema e a marcação de "novas" ficam guardados **no navegador de cada pessoa** (`localStorage`). Não há login nem servidor: cada visitante tem a sua própria lista, e nada é compartilhado entre aparelhos.
+> Sem conta, favoritas, buscas salvas, tema e a marcação de "novas" ficam guardados **no navegador de cada pessoa** (`localStorage`): cada visitante tem a sua própria lista. Com o [login ativado](#login-e-sincronização-opcional), favoritas e buscas salvas passam a ficar na conta.
 
 ## Como usar o site
 
@@ -102,10 +104,15 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 ```
 radar-licitacoes/
 ├── index.html                    # Página do site
+├── privacidade.html              # Política de Privacidade
+├── firestore.rules               # Regras do banco (cada conta só acessa os próprios dados)
 ├── assets/
 │   ├── css/app.css               # Estilos (tema claro e escuro)
 │   ├── js/app.js                 # Lógica: carga dos dados, filtros, lista, radar, agenda, CSV
 │   ├── js/tema.js                # Aplica o tema salvo antes de a página aparecer
+│   ├── js/config.js              # Dados do projeto Firebase (vazio = site sem login)
+│   ├── js/conta.js               # Login e sincronização de favoritas e buscas
+│   ├── vendor/firebase.js        # SDK do Firebase empacotado (só o que o site usa)
 │   └── img/og.png                # Imagem de prévia ao compartilhar o link
 ├── data/                         # Gerado automaticamente — não editar
 │   ├── indice.json               # Totais por estado, pontos do radar, diagnóstico da coleta
@@ -156,6 +163,28 @@ python -m http.server 8000
 
 > Abrir o `index.html` direto do disco (`file://`) não funciona, porque o navegador bloqueia a leitura do JSON. Use o servidor acima.
 
+## Login e sincronização (opcional)
+
+O site funciona sem login. Para que favoritas e buscas salvas acompanhem cada pessoa em qualquer aparelho, ative o login com o [Firebase](https://firebase.google.com) (plano gratuito, sem cartão):
+
+1. Em https://console.firebase.google.com, crie um projeto (sem Google Analytics).
+2. **Authentication → Método de login → E-mail/senha**: ative.
+3. **Firestore Database → Criar banco de dados**: local `southamerica-east1`, modo produção.
+4. **Firestore → Regras**: substitua o conteúdo pelo do arquivo [`firestore.rules`](firestore.rules) e publique.
+5. **Configurações do projeto → Seus aplicativos → Web (`</>`)**: registre um app e copie o `firebaseConfig`.
+6. Cole os dados em [`assets/js/config.js`](assets/js/config.js), no lugar de `null`.
+7. Recomendado: em **Google Cloud Console → APIs e serviços → Credenciais**, restrinja a chave do navegador ao endereço do site (`https://SEU-USUARIO.github.io/*`).
+
+Como funciona:
+
+- O botão **Entrar** só aparece quando `config.js` está preenchido. Sem isso, o SDK do Firebase nem é carregado.
+- No primeiro login em um navegador, o que já estava marcado ali é somado ao que está na conta. Depois, a conta é a referência.
+- Ao sair, os dados continuam na conta e são removidos do navegador (pensando em computadores compartilhados).
+- **Minha conta → Excluir minha conta** apaga o e-mail e os dados na hora.
+- O SDK fica hospedado junto com o site ([`assets/vendor/`](assets/vendor/LEIA-ME.md)), então a página não carrega scripts de outros domínios.
+
+> Ao ativar o login, você passa a tratar dados pessoais (o e-mail de quem se cadastra). O site já traz uma [Política de Privacidade](privacidade.html) e a exclusão de conta; revise o texto e o contato antes de divulgar.
+
 ## Extensão para Chrome (opcional)
 
 A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que consulta o PNCP **ao vivo**, sem esperar a próxima coleta. É útil para ver publicações de poucos minutos atrás ou como reserva se a coleta automática falhar. Instruções em [`extensao-chrome/README.md`](extensao-chrome/README.md).
@@ -178,15 +207,16 @@ A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que 
 
 - **Cobertura.** O radar mostra o que está no PNCP. Órgãos que ainda publicam só em portais próprios podem não aparecer.
 - **Atualização.** A coleta roda 6 vezes por dia (a cada 3 horas, das 6h às 21h). Como a varredura completa é demorada, uma licitação nova pode levar algumas horas para aparecer. Para tempo real, use a extensão.
-- **Sem contas.** Favoritas e buscas salvas não sincronizam entre aparelhos, porque o site não tem servidor nem login.
+- **Sincronização só com conta.** Sem login, favoritas e buscas salvas ficam em um único navegador. Com login, a sincronização acontece ao abrir o site e a cada mudança, não em tempo real entre abas abertas.
 - **Qualidade da fonte.** Descrições, valores e municípios vêm como o órgão cadastrou e podem ter erros ou campos vazios.
 - **Busca textual.** A busca é feita localmente sobre os campos coletados. O conteúdo dos PDFs dos editais não é pesquisado.
 
 ## Segurança e privacidade
 
-- **Sem contas e sem rastreamento.** O site não tem login, cookies nem ferramentas de análise. Favoritas, buscas salvas e tema ficam no navegador de cada visitante.
+- **Sem rastreamento.** O site não tem cookies de rastreamento nem ferramentas de análise. Sem conta, tudo fica no navegador do visitante.
+- **Conta com o mínimo de dados.** O login pede só e-mail e senha. As regras do banco ([`firestore.rules`](firestore.rules)) garantem que cada conta só leia e altere os próprios dados, e a conta pode ser excluída pelo próprio usuário.
 - **Dados externos tratados como não confiáveis.** Textos do PNCP são escapados, links só são aceitos em `http`/`https` e a planilha exportada é protegida contra fórmulas maliciosas.
-- **Política de conteúdo (CSP).** A página só executa scripts do próprio site e só se conecta ao `pncp.gov.br`.
+- **Política de conteúdo (CSP).** A página só executa scripts do próprio site e só se conecta ao `pncp.gov.br` e aos serviços de login e banco do Firebase.
 - **Coleta com privilégio mínimo.** A Action tem apenas permissão de escrita no conteúdo do repositório, usa *actions* fixadas por *hash* e nenhum pacote de terceiros.
 
 Detalhes e como relatar um problema: [`SECURITY.md`](SECURITY.md).

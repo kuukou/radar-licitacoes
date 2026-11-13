@@ -462,6 +462,7 @@ function salvarBusca(nome) {
   const { novas, ...f } = lerFiltros();
   buscas = buscas.filter((b) => b.nome !== nome).concat({ nome, f }).slice(-12);
   store.set("buscas", buscas);
+  avisarMudanca();
   abrirFormSalvar(false);
 }
 
@@ -717,6 +718,35 @@ function trocarTema(ev) {
   document.startViewTransition(aplicarTema);
 }
 
+// ---------- ponte para a sincronização da conta (assets/js/conta.js) ----------
+const ouvintesDados = [];
+function avisarMudanca() { ouvintesDados.forEach((fn) => { try { fn(); } catch {} }); }
+
+const texto = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+function limparBuscas(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista.slice(-30).filter((b) => b && typeof b.nome === "string" && b.f && typeof b.f === "object").map((b) => ({
+    nome: b.nome.slice(0, 32),
+    f: {
+      q: texto(b.f.q, 300), nao: texto(b.f.nao, 300), mun: texto(b.f.mun, 100), mod: texto(b.f.mod, 60),
+      vmin: texto(b.f.vmin, 15), vmax: texto(b.f.vmax, 15), dias: texto(b.f.dias, 4), ord: texto(b.f.ord, 10),
+      fav: !!b.f.fav, ufs: Array.isArray(b.f.ufs) ? b.f.ufs.filter((u) => UFS.includes(u)) : [],
+    },
+  }));
+}
+
+window.RadarDados = {
+  ler: () => ({ favs: [...favs], buscas: JSON.parse(JSON.stringify(buscas)) }),
+  gravar(d = {}) {      // recebe dados da conta: confere o formato antes de usar
+    favs = new Set((Array.isArray(d.favs) ? d.favs : []).filter((x) => typeof x === "string" && x.length <= 80).slice(-2000));
+    buscas = limparBuscas(d.buscas);
+    store.set("favs", [...favs]);
+    store.set("buscas", buscas);
+    aplicar({ manter: true });
+  },
+  aoMudar: (fn) => ouvintesDados.push(fn),
+};
+
 // ---------- visitas: o que é "novo" ----------
 function iniciarVisita(gerado) {
   const v = store.get("visita");
@@ -773,6 +803,7 @@ function ligarEventos() {
     if (rm) {
       buscas.splice(+rm.dataset.rmBusca, 1);
       store.set("buscas", buscas);
+      avisarMudanca();
       sincronizar(lerFiltros());
       return;
     }
@@ -812,6 +843,7 @@ function ligarEventos() {
       const on = !favs.has(id);
       on ? favs.add(id) : favs.delete(id);
       store.set("favs", [...favs]);
+      avisarMudanca();
       est.setAttribute("aria-pressed", on);
       est.setAttribute("aria-label", on ? "Remover das favoritas" : "Salvar nas favoritas");
       est.classList.remove("pop"); void est.offsetWidth; if (on) est.classList.add("pop");
@@ -847,7 +879,7 @@ function ligarEventos() {
 // ---------- início ----------
 async function init() {
   favs = new Set(store.get("favs") || []);
-  buscas = store.get("buscas") || [];
+  buscas = limparBuscas(store.get("buscas"));
   rotuloTema();
   ligarEventos();
   const inicial = filtrosDaURL() || migrar(store.get("filtros")) || {};

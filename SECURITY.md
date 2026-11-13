@@ -9,12 +9,21 @@ Inclua, se possível: o que acontece, como reproduzir e qual o impacto.
 ## Como o projeto se protege
 
 **Site**
-- Não há servidor, banco de dados, login ou cookies. Favoritas, buscas salvas e tema ficam só no navegador de cada pessoa (`localStorage`).
+- Sem conta, nada é enviado a servidores: favoritas, buscas salvas e tema ficam só no navegador de cada pessoa (`localStorage`). Não há cookies de rastreamento.
 - Todo texto vindo do PNCP é tratado como não confiável: é escapado antes de ir para a página.
 - Links cadastrados pelos órgãos só são aceitos se forem `http` ou `https`. Esquemas como `javascript:` e `data:` são descartados.
-- Uma *Content Security Policy* restringe a página a scripts do próprio site, fontes do Google Fonts e conexões com `pncp.gov.br`. Não há scripts embutidos no HTML.
+- Uma *Content Security Policy* restringe a página a scripts do próprio site, fontes do Google Fonts e conexões com `pncp.gov.br` e com os serviços de login e banco do Firebase. Não há scripts embutidos no HTML nem carregados de outros domínios.
 - A planilha exportada neutraliza células que o Excel interpretaria como fórmula (*CSV injection*).
 - O site é servido somente por HTTPS (GitHub Pages, com HSTS).
+
+**Conta (opcional, Firebase)**
+- O login usa e-mail e senha pelo Firebase Authentication. As senhas nunca passam pelo código do site nem ficam ao alcance do mantenedor.
+- Cada conta tem um único documento no banco, com favoritas e buscas salvas. As regras em [`firestore.rules`](firestore.rules) permitem que cada pessoa leia e altere **apenas o próprio documento**, limitam o formato e o tamanho do conteúdo e bloqueiam todo o resto.
+- As mensagens de erro não revelam se um e-mail está cadastrado.
+- Os dados recebidos da conta são conferidos (tipo e tamanho) antes de serem usados na página.
+- O SDK do Firebase é empacotado a partir do pacote oficial e hospedado junto com o site, em versão fixa ([`assets/vendor/LEIA-ME.md`](assets/vendor/LEIA-ME.md)).
+- Os dados em `assets/js/config.js` identificam o projeto e são públicos por natureza; não são segredos.
+- O próprio usuário pode excluir a conta e os dados.
 
 **Coleta (GitHub Actions)**
 - O *workflow* roda apenas por agendamento ou disparo manual; não processa *pull requests* nem dados de eventos externos.

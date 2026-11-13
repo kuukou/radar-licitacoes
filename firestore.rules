@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Regras do banco do Radar de Licitações.
+// Cada pessoa só enxerga e altera o próprio documento, e ele só pode conter favoritas e buscas salvas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /usuarios/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+
+      allow create, update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['favs', 'buscas', 'atualizado'])
+        && request.resource.data.favs is list
+        && request.resource.data.favs.size() <= 2000
+        && request.resource.data.buscas is list
+        && request.resource.data.buscas.size() <= 30
+        && request.resource.data.atualizado == request.time;
+    }
+
+    // todo o resto é bloqueado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
