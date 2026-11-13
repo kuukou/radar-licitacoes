@@ -102,9 +102,11 @@ function preparar(x) {
   x._enc = x.encerra ? Date.parse(x.encerra) : Infinity;
   x._pub = x.publicada ? Date.parse(x.publicada) : 0;
   x._visto = Date.parse(x.visto || x.publicada || "") || 0;
-  x._val = x.valor >= 10 ? x.valor : 0;      // valores simbólicos (R$ 1, R$ 0,01) não contam
+  x._cred = x.modalidade === "Credenciamento";  // no PNCP o "valor" do credenciamento é a soma dos preços unitários
+  x._val = x.valor >= 10 && !x._cred ? x.valor : 0;  // simbólicos (R$ 1, R$ 0,01) e credenciamentos não contam
   return x;
 }
+const cancelada = (x) => /^(revogada|anulada)$/i.test((x.sit || "").trim());
 const ehNova = (r) => novaRef !== null && r._visto > novaRef;
 
 // ---------- carregamento dos estados ----------
@@ -118,7 +120,7 @@ function carregarUF(uf) {
   if (!pendentes.has(uf)) {
     pendentes.set(uf, fetch(`data/uf/${uf}.json?v=${indice.ufs[uf].v || ""}`)
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then((d) => { carregadas.set(uf, (d.itens || []).map(preparar)); falhou.delete(uf); })
+      .then((d) => { carregadas.set(uf, (d.itens || []).filter((x) => !cancelada(x)).map(preparar)); falhou.delete(uf); })
       .catch(() => falhou.add(uf))
       .finally(() => pendentes.delete(uf)));
   }
@@ -518,6 +520,7 @@ function rotuloDisputa(d) {
 
 function valorHTML(r) {
   if (r._val) return `<div class="valor">${brl.format(r.valor)}</div>`;
+  if (r._cred && r.valor >= 10) return `<div class="valor nd" title="No credenciamento o PNCP publica só preços unitários, sem quantidades">Credenciamento<br>(sem valor total)</div>`;
   return `<div class="valor nd">${r.valor ? "Valor simbólico<br>(sem estimativa)" : "Valor não divulgado"}</div>`;
 }
 

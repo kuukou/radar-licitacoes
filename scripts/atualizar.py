@@ -33,6 +33,7 @@ LEGADO = DADOS / "licitacoes.json"          # formato antigo (arquivo único)
 BRT = dt.timezone(dt.timedelta(hours=-3))
 ID_PADRAO = re.compile(r"^\d{14}-\d+-\d+/\d{4}$")
 RADAR_MAX = 160
+CANCELADAS = {"revogada", "anulada"}        # situações que não recebem mais proposta
 
 INICIO = time.time()
 LIMITE_SEG = 150 * 60
@@ -181,6 +182,54 @@ def consolidar(obtidos, completo, ant_uf, agora_s):
     return {i: r for i, r in res.items() if not r.get("encerra") or r["encerra"] >= agora_s}
 
 
+# ---------------------------------------------------------------- limpeza
+def cancelada(r):
+    return (r.get("sit") or "").strip().lower() in CANCELADAS
+
+
+def chave_dup(r):
+    """Mesmo órgão (CNPJ) + mesmo número/ano + mesmo dia de encerramento.
+
+    Pega o caso comum de a prefeitura publicar no PNCP e o Portal de Compras Públicas
+    publicar de novo a mesma licitação ("PCE 24/2026" x "24/2026", "002/2026" x "2/2026")."""
+    num = r.get("numero") or ""
+    m = re.search(r"0*(\d+)\D*(?:/(\d{4}))?\s*$", num.split("|")[0].strip())
+    n, ano = (m.group(1), m.group(2) or "") if m else (num, "")
+    return (r["id"][:14], n, ano, (r.get("encerra") or "")[:10])
+
+
+def valores_iguais(a, b):
+    va, vb = a.get("valor") or 0, b.get("valor") or 0
+    if not va and not vb:
+        return True
+    return bool(va and vb and abs(va - vb) <= 0.01 * max(va, vb))
+
+
+def preferida(a, b):
+    """Entre duas cópias, fica a que tem link de envio de proposta; depois a de texto sem o prefixo do portal."""
+    def nota(r):
+        return (bool(r.get("origem")), not (r.get("objeto") or "").startswith("["), len(r.get("objeto") or ""))
+    return a if nota(a) >= nota(b) else b
+
+
+def deduplicar(itens):
+    grupos = collections.defaultdict(list)
+    for r in itens:
+        grupos[chave_dup(r)].append(r)
+    res = []
+    for g in grupos.values():
+        mantidos = []                       # dentro do grupo, só junta quando o valor também bate
+        for r in g:
+            for i, m in enumerate(mantidos):
+                if valores_iguais(r, m):
+                    mantidos[i] = preferida(m, r)
+                    break
+            else:
+                mantidos.append(r)
+        res += mantidos
+    return res
+
+
 # ---------------------------------------------------------------- gravação
 def serializar_itens(itens):
     linhas = [json.dumps(r, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
@@ -204,7 +253,7 @@ def gravar(estado, agora, falhas, manter_legado):
     ufs, todos = {}, []
     for uf in UFS:
         e = estado[uf]
-        itens = list(e["itens"].values())
+        itens = deduplicar([r for r in e["itens"].values() if not cancelada(r)])
         for r in itens:                     # "visto" igual à publicação é o padrão: não precisa gravar
             if r.get("visto") and r.get("visto") == r.get("publicada"):
                 del r["visto"]
