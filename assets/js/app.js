@@ -210,10 +210,13 @@ function mostrarPop(i, fixo) {
     </div>`;
   const svg = document.querySelector("#radar svg");
   pop.style.top = (p.y / 200 * svg.clientWidth + 14) + "px";
+  pop.style.setProperty("--py", p.y / 200);       // usado quando o radar está no modo que expande
+  $("radar").classList.toggle("fixo", fixo);
   pop.hidden = false;
 }
 function esconderPop() {
   radarFixo = false;
+  $("radar").classList.remove("fixo");
   $("radar-pop").hidden = true;
   $("radar-foco").setAttribute("cx", -20);
 }

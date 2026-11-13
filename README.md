@@ -72,7 +72,7 @@ Não precisa de cadastro, servidor nem banco de dados. O GitHub coleta os dados 
 ## Como funciona
 
 ```
-        6x por dia (a cada 3 horas, das 6h às 21h)
+            4x por dia (a cada 6 horas)
  ┌──────────────────────┐        ┌─────────────────────────┐
  │  GitHub Actions      │  API   │  PNCP — API de consulta │
  │  scripts/atualizar.py│ ─────► │  /v1/contratacoes/      │
@@ -142,7 +142,7 @@ Para criar sua própria cópia do Radar:
 Edite a linha `cron` em [`.github/workflows/atualizar.yml`](.github/workflows/atualizar.yml). O horário é em **UTC**, ou seja, Brasília + 3 horas:
 
 ```yaml
-- cron: "17 0,9,12,15,18,21 * * *"   # 06h17, 09h17, 12h17, 15h17, 18h17 e 21h17 em Brasília
+- cron: "23 3,9,15,21 * * *"   # 00h23, 06h23, 12h23 e 18h23 em Brasília
 ```
 
 > O GitHub pode atrasar execuções agendadas em alguns minutos e **pausa agendamentos de repositórios sem atividade por 60 dias**. Como a própria Action faz commits, isso normalmente não acontece.
@@ -206,7 +206,7 @@ A pasta [`extensao-chrome/`](extensao-chrome/) tem uma versão em extensão que 
 ## Limitações conhecidas
 
 - **Cobertura.** O radar mostra o que está no PNCP. Órgãos que ainda publicam só em portais próprios podem não aparecer.
-- **Atualização.** A coleta roda 6 vezes por dia (a cada 3 horas, das 6h às 21h). Como a varredura completa é demorada, uma licitação nova pode levar algumas horas para aparecer. Para tempo real, use a extensão.
+- **Atualização.** A coleta roda 4 vezes por dia (0h23, 6h23, 12h23 e 18h23). Como a varredura completa é demorada, uma licitação nova pode levar algumas horas para aparecer. Para tempo real, use a extensão.
 - **Sincronização só com conta.** Sem login, favoritas e buscas salvas ficam em um único navegador. Com login, a sincronização acontece ao abrir o site e a cada mudança, não em tempo real entre abas abertas.
 - **Qualidade da fonte.** Descrições, valores e municípios vêm como o órgão cadastrou e podem ter erros ou campos vazios.
 - **Busca textual.** A busca é feita localmente sobre os campos coletados. O conteúdo dos PDFs dos editais não é pesquisado.
